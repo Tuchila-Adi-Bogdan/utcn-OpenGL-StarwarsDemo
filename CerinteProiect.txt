@@ -1,0 +1,31 @@
+
+    (2p) vizualizarea scenei: scalare, translație, rotație, mișcarea camerei
+        utilizând tastatura sau mausul
+        utilizând animații de prezentare
+    (1p) specificarea surselor de lumina (cel puțin două surse de lumină diferite)
+    (0.5p) vizualizare scenă în modurile solid, wireframe, poligonal și smooth
+    (1p) maparea texturilor și definirea materialelor
+        calitatea texturilor și nivelul de detaliu al acestora
+        maparea texturilor pe obiecte
+    (1p) exemplificarea generării umbrelor
+    (0.5p) exemplificarea animării diferitelor componente ale obiectelor
+    (3p) fotorealism, complexitatea scenei, nivelul de detaliere al modelării, dezvoltarea diferiților algoritmi și implementarea acestora (generare dinamică de obiecte, detecția coliziunilor, generarea umbrelor, ceață, ploaie, vânt), calitatea animațiilor, utilizarea diferitelor surse de lumină (globală, locală, de tip spot)
+    (1p) documentația (obligatorie)
+
+Exemplu de cuprins pentru documentatia aferenta proiectului SPG:
+1. Cuprins
+2. Prezentarea temei
+3. Scenariul
+    3.1. descrierea scenei și a obiectelor
+    3.2. funcționalități
+4. Detalii de implementare
+    4.1. funcții și algortmi
+           4.1.1. soluții posibile
+           4.1.2. motivarea abordării alese
+    4.2. modelul grafic
+    4.3. structuri de date
+    4.4. ierarhia de clase
+5. Prezentarea interfeței grafice utilizator / manual de utilizare
+6. Concluzii și dezvoltări ulterioare
+7. Referințe
+OBS: referințele trebuie să fie evidențiate în textul documentației
