@@ -48,7 +48,7 @@ gps::Camera myCamera(
     glm::vec3(0.0f, 0.0f, -10.0f),
     glm::vec3(0.0f, 1.0f, 0.0f));
 
-GLfloat cameraSpeed = 0.1f;
+GLfloat cameraSpeed = 10.0f;
 
 GLboolean pressedKeys[1024];
 
@@ -299,35 +299,51 @@ void renderTeapot(gps::Shader shader) {
 void renderXWings(gps::Shader shader) {
     shader.useShaderProgram();
 
-    // 5-ship wedge formation (Tighter spacing for fighters)
-    glm::vec3 xwingOffsets[] = {
-        glm::vec3(0.0f,   0.0f, 0.0f),   // Leader
-        glm::vec3(-15.0f, 0.0f, 15.0f),  // Left 1
-        glm::vec3(15.0f, 0.0f, 15.0f),  // Right 1
-        glm::vec3(-30.0f, 0.0f, 30.0f),  // Left 2
-        glm::vec3(30.0f, 0.0f, 30.0f)   // Right 2
+    // 1. Define the 5-ship "V" shape offsets (Local formation)
+    glm::vec3 localFormation[] = {
+        glm::vec3(0.0f,  0.0f,  0.0f),    // Leader
+        glm::vec3(-15.0f, 0.0f, 15.0f),   // Left Wingman 1
+        glm::vec3(15.0f, 0.0f, 15.0f),    // Right Wingman 1
+        glm::vec3(-30.0f, 0.0f, 30.0f),   // Left Wingman 2
+        glm::vec3(30.0f, 0.0f, 30.0f)     // Right Wingman 2
     };
 
-    // Base position: Z=50 puts them well in front of the ISDs (which are at -100)
-    glm::vec3 xwingBasePos = glm::vec3(0.0f, -5.0f, -40.0f);
+    // 2. Define the center positions for the 5 different Squadrons
+    glm::vec3 squadronCenters[] = {
+        glm::vec3(0.0f,   0.0f,   0.0f),    // Alpha Squadron (Center)
+        glm::vec3(-150.0f,  30.0f,  50.0f), // Bravo Squadron (High Left)
+        glm::vec3(150.0f,  30.0f,  50.0f),  // Charlie Squadron (High Right)
+        glm::vec3(-150.0f, -30.0f,  50.0f), // Delta Squadron (Low Left)
+        glm::vec3(150.0f, -30.0f,  50.0f)   // Echo Squadron (Low Right)
+    };
 
-    for (int i = 0; i < 5; i++) {
-        glm::mat4 modelX = glm::mat4(1.0f);
+    // 3. Global base position
+    // Moved to 0.0f to create more distance from ISDs (at -100.0f) but still in view
+    glm::vec3 rebelFleetBase = glm::vec3(0.0f, 0.0f, 500.0f);
 
-        // Position: Static base + formation offset
-        modelX = glm::translate(modelX, xwingBasePos + xwingOffsets[i]);
+    for (int s = 0; s < 5; s++) {
+        for (int i = 0; i < 5; i++) {
+            glm::mat4 modelX = glm::mat4(1.0f);
 
-        // Rotation: Rotate 180 degrees to face the ISDs
-        modelX = glm::rotate(modelX, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            glm::vec3 finalPos = rebelFleetBase + squadronCenters[s] + localFormation[i];
+            modelX = glm::translate(modelX, finalPos);
 
-        // Send uniforms
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelX));
+            // 4. Scale down by 40% (Target size = 0.6)
+            modelX = glm::scale(modelX, glm::vec3(0.6f));
 
-        // Normal Matrix
-        glm::mat3 normalMatrixX = glm::mat3(glm::inverseTranspose(view * modelX));
-        glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixX));
+            // Banking logic for effect (Optional, keeps them looking dynamic)
+            if (s == 1 || s == 3)
+                modelX = glm::rotate(modelX, glm::radians(-15.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+            if (s == 2 || s == 4)
+                modelX = glm::rotate(modelX, glm::radians(15.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
-        xwing.Draw(shader);
+            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelX));
+
+            glm::mat3 normalMatrixX = glm::mat3(glm::inverseTranspose(view * modelX));
+            glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixX));
+
+            xwing.Draw(shader);
+        }
     }
 }
 
