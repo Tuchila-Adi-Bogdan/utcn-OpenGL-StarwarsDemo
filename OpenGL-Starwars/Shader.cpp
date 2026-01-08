@@ -17,6 +17,11 @@ namespace gps {
         //open shader file
         shaderFile.open(fileName);
         
+        if (!shaderFile.is_open()) {
+            std::cerr << "ERROR: Could not open shader file: " << fileName << std::endl;
+            return "";
+        }
+
         std::stringstream shaderStringStream;
         
         //read shader content into stream
@@ -95,5 +100,4 @@ namespace gps {
 
         glUseProgram(this->shaderProgram);
     }
-
 }

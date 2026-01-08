@@ -19,6 +19,7 @@
 #include "Model3D.hpp"
 
 #include <iostream>
+#include "SkyBox.hpp"
 
 // window
 gps::Window myWindow;
@@ -53,10 +54,15 @@ GLboolean pressedKeys[1024];
 
 // models
 gps::Model3D teapot;
+gps::Model3D isd1;
 GLfloat angle;
 
 // shaders
 gps::Shader myBasicShader;
+
+//skybox
+gps::SkyBox mySkyBox;
+gps::Shader skyboxShader;
 
 GLenum glCheckError_(const char *file, int line)
 {
@@ -168,13 +174,25 @@ void processMovement() {
 }
 
 void initOpenGLWindow() {
-    myWindow.Create(1024, 768, "OpenGL Project Core");
+    myWindow.Create(1024, 768, "OpenGL Starwars Project");
 }
 
 void setWindowCallbacks() {
 	glfwSetWindowSizeCallback(myWindow.getWindow(), windowResizeCallback);
     glfwSetKeyCallback(myWindow.getWindow(), keyboardCallback);
     glfwSetCursorPosCallback(myWindow.getWindow(), mouseCallback);
+}
+
+void initSkybox()
+{
+    std::vector<const GLchar*> faces;
+    faces.push_back("skybox/right.tga");
+    faces.push_back("skybox/left.tga");
+    faces.push_back("skybox/top.tga");
+    faces.push_back("skybox/bottom.tga");
+    faces.push_back("skybox/back.tga");
+    faces.push_back("skybox/front.tga");
+    mySkyBox.Load(faces);
 }
 
 void initOpenGLState() {
@@ -190,12 +208,16 @@ void initOpenGLState() {
 
 void initModels() {
     teapot.LoadModel("models/teapot/teapot20segUT.obj");
+    isd1.LoadModel("models/isd1/ISD1.obj");
+    initSkybox();
 }
 
 void initShaders() {
 	myBasicShader.loadShader(
         "shaders/basic.vert",
         "shaders/basic.frag");
+    skyboxShader.loadShader("shaders/skyboxShader.vert", "shaders/skyboxShader.frag");
+    skyboxShader.useShaderProgram();
 }
 
 void initUniforms() {
@@ -250,13 +272,31 @@ void renderTeapot(gps::Shader shader) {
     teapot.Draw(shader);
 }
 
+
+
+void renderISD1(gps::Shader shader) {
+    // select active shader program
+    shader.useShaderProgram();
+
+    //send teapot model matrix data to shader
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+
+    //send teapot normal matrix data to shader
+    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
+
+    // draw teapot
+    isd1.Draw(shader);
+}
+
 void renderScene() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	//render the scene
 
 	// render the teapot
+    mySkyBox.Draw(skyboxShader, view, projection);
 	renderTeapot(myBasicShader);
+    renderISD1(myBasicShader);
 
 }
 

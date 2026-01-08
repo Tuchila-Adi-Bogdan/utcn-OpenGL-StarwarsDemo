@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="OpenGL-Starwars.vcxproj" />
+  <Project Path="OpenGL-Starwars.vcxproj" Id="4f132487-06ed-4a74-bf9c-05f2e7eb0965" />
 </Solution>
