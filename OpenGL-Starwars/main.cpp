@@ -48,7 +48,7 @@ gps::Camera myCamera(
     glm::vec3(0.0f, 0.0f, -10.0f),
     glm::vec3(0.0f, 1.0f, 0.0f));
 
-GLfloat cameraSpeed = 0.1f;
+GLfloat cameraSpeed = 20.0f;
 
 GLboolean pressedKeys[1024];
 
@@ -222,7 +222,7 @@ void initOpenGLState() {
 
 void initModels() {
     teapot.LoadModel("models/teapot/teapot20segUT.obj");
-    isd1.LoadModel("models/isd1/ISD1.obj");
+    isd1.LoadModel("models/isd2/Imperial-Class-StarDestroyer.obj");
     initSkybox();
 }
 
@@ -254,7 +254,7 @@ void initUniforms() {
 	// create projection matrix
 	projection = glm::perspective(glm::radians(45.0f),
                                (float)myWindow.getWindowDimensions().width / (float)myWindow.getWindowDimensions().height,
-                               0.1f, 20.0f);
+                               0.1f, 1000.0f);
 	projectionLoc = glGetUniformLocation(myBasicShader.shaderProgram, "projection");
 	// send projection matrix to shader
 	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));	
@@ -289,17 +289,45 @@ void renderTeapot(gps::Shader shader) {
 
 
 void renderISD1(gps::Shader shader) {
-    // select active shader program
     shader.useShaderProgram();
 
-    //send teapot model matrix data to shader
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+    // INCREASED SPACING:
+    // I increased the gap intervals from 15 to 80 to prevent overlap.
+    // Format: (Left/Right, Up/Down, Forward/Back)
+    glm::vec3 formationOffsets[] = {
+        glm::vec3(0.0f,  0.0f,   0.0f),   // 1. Leader
+        glm::vec3(-80.0f,  0.0f,  80.0f),   // 2. Left Wing 1
+        glm::vec3(80.0f,  0.0f,  80.0f),   // 3. Right Wing 1
+        glm::vec3(-160.0f, 0.0f, 160.0f),   // 4. Left Wing 2
+        glm::vec3(160.0f, 0.0f, 160.0f),   // 5. Right Wing 2
+        glm::vec3(-240.0f, 0.0f, 240.0f),   // 6. Left Wing 3
+        glm::vec3(240.0f, 0.0f, 240.0f),   // 7. Right Wing 3
+        glm::vec3(0.0f, 40.0f, 120.0f)   // 8. Rear Admiral (Higher and further back)
+    };
 
-    //send teapot normal matrix data to shader
-    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
+    // Moved the fleet slightly further back (-100.0f) so the larger formation fits in view
+    glm::vec3 fleetBasePos = glm::vec3(0.0f, -10.0f, -100.0f);
 
-    // draw teapot
-    isd1.Draw(shader);
+    for (int i = 0; i < 8; i++) {
+        glm::mat4 isdModel = glm::mat4(1.0f);
+
+        // 1. Apply Position
+        isdModel = glm::translate(isdModel, fleetBasePos + formationOffsets[i]);
+
+        // 2. Scale (Kept at 0.05f)
+        isdModel = glm::scale(isdModel, glm::vec3(0.05f));
+
+        // 3. Rotate ships in place
+        isdModel = glm::rotate(isdModel, glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
+
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(isdModel));
+
+        // Recalculate normals for lighting
+        glm::mat3 isdNormalMatrix = glm::mat3(glm::inverseTranspose(view * isdModel));
+        glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(isdNormalMatrix));
+
+        isd1.Draw(shader);
+    }
 }
 
 void renderScene() {
