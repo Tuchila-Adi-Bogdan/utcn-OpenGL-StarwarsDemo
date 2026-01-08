@@ -111,70 +111,84 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
     }
 }
 
+bool firstMouse = false;
+double lastX, lastY;
+float pitch = 0.0f, yaw = -90.0f;
 void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
-    //TODO
+    //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    if (firstMouse)
+    {
+        lastX = xpos;
+        lastY = ypos;
+        firstMouse = false;
+    }
+
+    float xoffset = xpos - lastX;
+    float yoffset = lastY - ypos;
+    lastX = xpos;
+    lastY = ypos;
+
+    float sensitivity = 0.1f;
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
+
+    yaw += xoffset;
+    pitch += yoffset;
+
+    if (pitch > 89.0f)
+        pitch = 89.0f;
+    if (pitch < -89.0f)
+        pitch = -89.0f;
+
+    /*if (yaw > 89.0f)
+        yaw = 89.0f;
+    if (yaw < -89.0f)
+        yaw = -89.0f;*/
+
+    myCamera.rotate(pitch, yaw);
+
 }
 
 void processMovement() {
-	if (pressedKeys[GLFW_KEY_W]) {
-		myCamera.move(gps::MOVE_FORWARD, cameraSpeed);
-		//update view matrix
-        view = myCamera.getViewMatrix();
-        myBasicShader.useShaderProgram();
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        // compute normal matrix for teapot
-        normalMatrix = glm::mat3(glm::inverseTranspose(view*model));
-	}
+    if (pressedKeys[GLFW_KEY_W]) {
+        myCamera.move(gps::MOVE_FORWARD, cameraSpeed);
+    }
 
-	if (pressedKeys[GLFW_KEY_S]) {
-		myCamera.move(gps::MOVE_BACKWARD, cameraSpeed);
-        //update view matrix
-        view = myCamera.getViewMatrix();
-        myBasicShader.useShaderProgram();
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        // compute normal matrix for teapot
-        normalMatrix = glm::mat3(glm::inverseTranspose(view*model));
-	}
+    if (pressedKeys[GLFW_KEY_S]) {
+        myCamera.move(gps::MOVE_BACKWARD, cameraSpeed);
+    }
 
-	if (pressedKeys[GLFW_KEY_A]) {
-		myCamera.move(gps::MOVE_LEFT, cameraSpeed);
-        //update view matrix
-        view = myCamera.getViewMatrix();
-        myBasicShader.useShaderProgram();
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        // compute normal matrix for teapot
-        normalMatrix = glm::mat3(glm::inverseTranspose(view*model));
-	}
+    if (pressedKeys[GLFW_KEY_A]) {
+        myCamera.move(gps::MOVE_LEFT, cameraSpeed);
+    }
 
-	if (pressedKeys[GLFW_KEY_D]) {
-		myCamera.move(gps::MOVE_RIGHT, cameraSpeed);
-        //update view matrix
-        view = myCamera.getViewMatrix();
-        myBasicShader.useShaderProgram();
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        // compute normal matrix for teapot
-        normalMatrix = glm::mat3(glm::inverseTranspose(view*model));
-	}
+    if (pressedKeys[GLFW_KEY_D]) {
+        myCamera.move(gps::MOVE_RIGHT, cameraSpeed);
+    }
 
     if (pressedKeys[GLFW_KEY_Q]) {
         angle -= 1.0f;
-        // update model matrix for teapot
         model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0, 1, 0));
-        // update normal matrix for teapot
-        normalMatrix = glm::mat3(glm::inverseTranspose(view*model));
     }
 
     if (pressedKeys[GLFW_KEY_E]) {
         angle += 1.0f;
-        // update model matrix for teapot
         model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0, 1, 0));
-        // update normal matrix for teapot
-        normalMatrix = glm::mat3(glm::inverseTranspose(view*model));
     }
+
+    // Update the view matrix every frame
+    view = myCamera.getViewMatrix();
+    myBasicShader.useShaderProgram();
+    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+
+    // Update normal matrix (because it depends on View)
+    normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
+    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
 }
 
 void initOpenGLWindow() {
     myWindow.Create(1024, 768, "OpenGL Starwars Project");
+    glfwSetInputMode(myWindow.getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 }
 
 void setWindowCallbacks() {
@@ -305,8 +319,9 @@ void cleanup() {
     //cleanup code for your own data
 }
 
-int main(int argc, const char * argv[]) {
-
+int main(int argc, const char * argv[]) 
+{
+    bool firstMouse = true;
     try {
         initOpenGLWindow();
     } catch (const std::exception& e) {
