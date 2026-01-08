@@ -48,7 +48,7 @@ gps::Camera myCamera(
     glm::vec3(0.0f, 0.0f, -10.0f),
     glm::vec3(0.0f, 1.0f, 0.0f));
 
-GLfloat cameraSpeed = 20.0f;
+GLfloat cameraSpeed = 0.1f;
 
 GLboolean pressedKeys[1024];
 
@@ -58,6 +58,7 @@ GLfloat fleetSpeed = 0.5f; // How fast they move
 // models
 gps::Model3D teapot;
 gps::Model3D isd1;
+gps::Model3D xwing;
 
 GLfloat angle;
 
@@ -231,6 +232,7 @@ void initOpenGLState() {
 void initModels() {
     teapot.LoadModel("models/teapot/teapot20segUT.obj");
     isd1.LoadModel("models/isd2/Imperial-Class-StarDestroyer.obj");
+    xwing.LoadModel("models/xwing4/x-wing-flyingv1.obj");
     initSkybox();
 }
 
@@ -294,7 +296,40 @@ void renderTeapot(gps::Shader shader) {
     teapot.Draw(shader);
 }
 
+void renderXWings(gps::Shader shader) {
+    shader.useShaderProgram();
 
+    // 5-ship wedge formation (Tighter spacing for fighters)
+    glm::vec3 xwingOffsets[] = {
+        glm::vec3(0.0f,   0.0f, 0.0f),   // Leader
+        glm::vec3(-15.0f, 0.0f, 15.0f),  // Left 1
+        glm::vec3(15.0f, 0.0f, 15.0f),  // Right 1
+        glm::vec3(-30.0f, 0.0f, 30.0f),  // Left 2
+        glm::vec3(30.0f, 0.0f, 30.0f)   // Right 2
+    };
+
+    // Base position: Z=50 puts them well in front of the ISDs (which are at -100)
+    glm::vec3 xwingBasePos = glm::vec3(0.0f, -5.0f, -40.0f);
+
+    for (int i = 0; i < 5; i++) {
+        glm::mat4 modelX = glm::mat4(1.0f);
+
+        // Position: Static base + formation offset
+        modelX = glm::translate(modelX, xwingBasePos + xwingOffsets[i]);
+
+        // Rotation: Rotate 180 degrees to face the ISDs
+        modelX = glm::rotate(modelX, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+        // Send uniforms
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelX));
+
+        // Normal Matrix
+        glm::mat3 normalMatrixX = glm::mat3(glm::inverseTranspose(view * modelX));
+        glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixX));
+
+        xwing.Draw(shader);
+    }
+}
 
 void renderISD1(gps::Shader shader) {
     shader.useShaderProgram();
@@ -339,7 +374,7 @@ void renderScene() {
     mySkyBox.Draw(skyboxShader, view, projection);
 	renderTeapot(myBasicShader);
     renderISD1(myBasicShader);
-
+    renderXWings(myBasicShader);
 }
 
 void cleanup() {
