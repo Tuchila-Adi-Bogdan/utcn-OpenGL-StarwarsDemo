@@ -1,0 +1,52 @@
+# Blender 5.0.1 MTL File: 'None'
+# www.blender.org
+
+newmtl ReflectiveGlass
+Ns 490.000000
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd textures/black.png
+
+newmtl ScratchedMetal
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 3
+map_Kd textures/ScratchedMetalDark_baseColor.png
+map_d textures/ScratchedMetalDark_metallicRoughness.png
+
+newmtl ScratchedMetalDark
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+illum 3
+map_Kd textures/ScratchedMetalDark_baseColor.png
+map_d textures/ScratchedMetalDark_metallicRoughness.png
+
+newmtl ScratchedMetalRed
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 3
+map_Kd textures/B87070.png
+
+newmtl YellowEngineGlow
+Ns 159.999985
+Ka 1.000000 1.000000 1.000000
+Ks 0.500000 0.500000 0.500000
+Ke 1.000000 1.000000 0.000000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd textures/ScratchedMetalDark_metallicRoughness.png
