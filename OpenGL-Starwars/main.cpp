@@ -52,12 +52,23 @@ GLfloat cameraSpeed = 10.0f;
 
 GLboolean pressedKeys[1024];
 
-glm::vec3 fleetPosition(0.0f, -10.0f, -100.0f); // Starting position
-GLfloat fleetSpeed = 0.5f; // How fast they move
+glm::vec3 ImperialFleetPositionDefault(0.0f, -10.0f, -100.0f);
+glm::vec3 xwingFleetPositionDefault(0.0f, 0.0f, 500.0f);
+glm::vec3 cruiserFleetPositionDefault(0.0f, 20.0f, 950.0f);
+glm::vec3 awingFleetPositionDefault(0.0f, 0.0f, 880.0f);
+
+glm::vec3 ImperialFleetPosition(0.0f, -10.0f, -100.0f);
+GLfloat capitalShipSpeed = 0.1f;
+
+glm::vec3 xwingFleetPosition(0.0f, 0.0f, 500.0f);
+GLfloat smallShipSpeed = 0.7f;
+
+glm::vec3 cruiserFleetPosition(0.0f, 20.0f, 950.0f);
+
+glm::vec3 awingFleetPosition(0.0f, 0.0f, 880.0f);
 
 // models
 //Empire
-gps::Model3D teapot;
 gps::Model3D isd1;
 gps::Model3D deathStar;
 
@@ -189,9 +200,18 @@ void processMovement() {
     }
 
     if (pressedKeys[GLFW_KEY_SPACE]) {
-        fleetPosition.z += fleetSpeed;
+        ImperialFleetPosition.z += capitalShipSpeed;
+        xwingFleetPosition.z -= smallShipSpeed;
+        cruiserFleetPosition.z -= capitalShipSpeed;
+        awingFleetPosition.z -= smallShipSpeed;
     }
 
+    if (pressedKeys[GLFW_KEY_K]) {
+        ImperialFleetPosition = ImperialFleetPositionDefault;
+        xwingFleetPosition = xwingFleetPositionDefault;
+        cruiserFleetPosition = cruiserFleetPositionDefault;
+        awingFleetPosition = awingFleetPositionDefault;
+    }
     // Update the view matrix every frame
     view = myCamera.getViewMatrix();
     myBasicShader.useShaderProgram();
@@ -239,7 +259,6 @@ void initOpenGLState() {
 void initModels() {
 
     //Empire
-    teapot.LoadModel("models/teapot/teapot20segUT.obj");
     isd1.LoadModel("models/isd2/Imperial-Class-StarDestroyer.obj");
     deathStar.LoadModel("models/ds4/death_star_ii.obj");
 
@@ -247,7 +266,7 @@ void initModels() {
     xwing.LoadModel("models/xwing4/x-wing.obj");
     awing.LoadModel("models/awing/A-Wing.obj");
     cruiser.LoadModel("models/cruiser/cruiser.obj");
-    //transport.LoadModel("models/falcon/transport.obj");
+    //transport.LoadModel("models/transport/transport.obj");
     //Skybox
     initSkybox();
 }
@@ -298,20 +317,6 @@ void initUniforms() {
 	glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
 }
 
-void renderTeapot(gps::Shader shader) {
-    // select active shader program
-    shader.useShaderProgram();
-
-    //send teapot model matrix data to shader
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-
-    //send teapot normal matrix data to shader
-    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
-
-    // draw teapot
-    teapot.Draw(shader);
-}
-
 void renderXWings(gps::Shader shader) {
     shader.useShaderProgram();
 
@@ -333,21 +338,16 @@ void renderXWings(gps::Shader shader) {
         glm::vec3(150.0f, -30.0f,  50.0f)   // Echo Squadron (Low Right)
     };
 
-    // 3. Global base position
-    // Moved to 0.0f to create more distance from ISDs (at -100.0f) but still in view
-    glm::vec3 rebelFleetBase = glm::vec3(0.0f, 0.0f, 500.0f);
-
     for (int s = 0; s < 5; s++) {
         for (int i = 0; i < 5; i++) {
             glm::mat4 modelX = glm::mat4(1.0f);
 
-            glm::vec3 finalPos = rebelFleetBase + squadronCenters[s] + localFormation[i];
+            // Use global variable here
+            glm::vec3 finalPos = xwingFleetPosition + squadronCenters[s] + localFormation[i];
+
             modelX = glm::translate(modelX, finalPos);
+            //modelX = glm::scale(modelX, glm::vec3(0.6f));
 
-            // 4. Scale down by 40% (Target size = 0.6)
-            modelX = glm::scale(modelX, glm::vec3(0.6f));
-
-            // Banking logic for effect (Optional, keeps them looking dynamic)
             if (s == 1 || s == 3)
                 modelX = glm::rotate(modelX, glm::radians(-15.0f), glm::vec3(0.0f, 0.0f, 1.0f));
             if (s == 2 || s == 4)
@@ -366,47 +366,42 @@ void renderXWings(gps::Shader shader) {
 void renderAWings(gps::Shader shader) {
     shader.useShaderProgram();
 
-    // 1. Define the 3-ship "Slash" pattern (Local formation)
+    // 1. Define the 3-ship "Slash" pattern
     glm::vec3 slashFormation[] = {
-        glm::vec3(-10.0f,  5.0f,  -10.0f), // Wingman 1
-        glm::vec3(0.0f, 10.0f,    0.0f), // Leader (Highest)
-        glm::vec3(10.0f,  5.0f,   10.0f)  // Wingman 2
+        glm::vec3(-10.0f,  5.0f,  -10.0f),
+        glm::vec3(0.0f, 10.0f,    0.0f),
+        glm::vec3(10.0f,  5.0f,   10.0f)
     };
 
-    // 2. Define the positions for the 3 separate Squadrons
+    // 2. Define Squadron Centers
     glm::vec3 squadronCenters[] = {
-        glm::vec3(-100.0f,  80.0f,  0.0f),  // Green Leader (High Left)
-        glm::vec3(100.0f,  80.0f,  0.0f),  // Blue Leader (High Right)
-        glm::vec3(0.0f, 120.0f, 50.0f)   // Red Leader (Very High Center/Rear)
+        glm::vec3(-100.0f,  80.0f,  0.0f),
+        glm::vec3(100.0f,  80.0f,  0.0f),
+        glm::vec3(0.0f, 120.0f, 50.0f)
     };
 
-    // 3. Global Base Position (Moved back to 80.0f)
-    glm::vec3 globalBase = glm::vec3(0.0f, 0.0f, 880.0f);
+    // REMOVED local globalBase variable
+    // We now use the global 'awingFleetPosition'
 
-    // Loop through 3 Squadrons
     for (int s = 0; s < 3; s++) {
-
-        // Loop through 3 Ships per Squadron
         for (int i = 0; i < 3; i++) {
             glm::mat4 modelA = glm::mat4(1.0f);
 
-            // Calculate Position
-            glm::vec3 finalPos = globalBase + squadronCenters[s] + slashFormation[i];
-            modelA = glm::translate(modelA, finalPos);
+            // Use GLOBAL variable for position updates
+            glm::vec3 finalPos = awingFleetPosition + squadronCenters[s] + slashFormation[i];
 
-            // Scale (Tiny interceptors)
+            modelA = glm::translate(modelA, finalPos);
             modelA = glm::scale(modelA, glm::vec3(0.4f));
 
-            // Rotate to face enemy (180) + Formation Bank
+            // Rotation
             modelA = glm::rotate(modelA, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-            // Dynamic Banking based on squadron side
-            if (s == 0) // Left Squad banks Right
+            // Banking logic
+            if (s == 0)
                 modelA = glm::rotate(modelA, glm::radians(-30.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-            if (s == 1) // Right Squad banks Left
+            if (s == 1)
                 modelA = glm::rotate(modelA, glm::radians(30.0f), glm::vec3(0.0f, 0.0f, 1.0f));
 
-            // Send uniforms
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelA));
             glm::mat3 normalMatrixA = glm::mat3(glm::inverseTranspose(view * modelA));
             glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixA));
@@ -426,22 +421,18 @@ void renderCruisers(gps::Shader shader) {
     };
 
     for (int i = 0; i < 3; i++) {
-        glm::mat4 modelY = glm::mat4(1.0f);
+        glm::mat4 modelM = glm::mat4(1.0f);
+        
+        // Use GLOBAL variable for position updates
+        // We add the offset to the moving fleet position
+        modelM = glm::translate(modelM, cruiserFleetPosition + cruisersOffsets[i]);
 
-        glm::vec3 basePos = glm::vec3(0.0f, 20.0f, 950.0f);
-        modelY = glm::translate(modelY, basePos + cruisersOffsets[i]);
+        modelM = glm::scale(modelM, glm::vec3(0.05f));
+        modelM = glm::rotate(modelM, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-        // Scale
-        modelY = glm::scale(modelY, glm::vec3(0.05f));
-
-        // Rotate: Face the enemy (180 degrees)
-        modelY = glm::rotate(modelY, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelY));
-        glm::mat3 normalMatrixY = glm::mat3(glm::inverseTranspose(view * modelY));
-        glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixY));
-
-        cruiser.Draw(shader);
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelM));
+        glm::mat3 normalMatrixM = glm::mat3(glm::inverseTranspose(view * modelM));
+        glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixM));cruiser.Draw(shader);
     }
 }
 
@@ -464,8 +455,8 @@ void renderISD1(gps::Shader shader) {
         glm::mat4 isdModel = glm::mat4(1.0f);
 
         // USE THE GLOBAL VARIABLE HERE:
-        // We add the offset to the changing global fleetPosition
-        isdModel = glm::translate(isdModel, fleetPosition + formationOffsets[i]);
+        // We add the offset to the changing global ImperialFleetPosition
+        isdModel = glm::translate(isdModel, ImperialFleetPosition + formationOffsets[i]);
 
         isdModel = glm::scale(isdModel, glm::vec3(0.05f));
         isdModel = glm::rotate(isdModel, glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -508,9 +499,8 @@ void renderScene() {
 
 	//render the scene
 
-	// render the teapot
+	// render the skybox
     mySkyBox.Draw(skyboxShader, view, projection);
-	renderTeapot(myBasicShader);
     //Empire
     renderISD1(myBasicShader);
     renderDeathStar(myBasicShader);
