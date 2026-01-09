@@ -48,7 +48,7 @@ gps::Camera myCamera(
     glm::vec3(0.0f, 0.0f, -10.0f),
     glm::vec3(0.0f, 1.0f, 0.0f));
 
-GLfloat cameraSpeed = 4.0f;
+GLfloat cameraSpeed = 20.0f;
 
 GLboolean pressedKeys[1024];
 
@@ -67,11 +67,25 @@ glm::vec3 cruiserFleetPosition(0.0f, 20.0f, 950.0f);
 
 glm::vec3 awingFleetPosition(0.0f, 0.0f, 880.0f);
 
+glm::vec3 sunPosition = glm::vec3(3000.0f, 3000.0f, 3000.0f);
+glm::vec3 lightPosition = glm::vec3(2500.0f, 2500.0f, 2500.0f);
+
 // SHIP DATA STRUCTURE
+enum ShipState {
+    APPROACHING,
+    EVASIVE_TURN,
+    EVASIVE_RUN,
+    STABILIZE,
+    RETURNING,   // Flying back to Rebel Fleet
+    RESET_TURN   // Turning around to start a new run
+};
+
 struct Ship {
     glm::vec3 position; // World Position
     glm::vec3 rotation; // Euler Angles: x=Pitch, y=Yaw, z=Roll
     float speed;        // Individual speed
+    ShipState state = APPROACHING;
+    float stateTimer = 0.0f;
 };
 
 // Global Fleets
@@ -84,6 +98,7 @@ bool isSpaceHeld = false;
 double lastFrameTime = 0.0;
 
 // models
+gps::Model3D sun;
 //Empire
 gps::Model3D isd1;
 gps::Model3D deathStar;
@@ -232,7 +247,7 @@ void initFighterFleets() {
             if (s == 0) sA.rotation.z = glm::radians(-30.0f);
             if (s == 1) sA.rotation.z = glm::radians(30.0f);
 
-            sA.speed = 0.7f;
+            sA.speed = 5.0f;
             aWings.push_back(sA);
         }
     }
@@ -240,35 +255,134 @@ void initFighterFleets() {
 }
 
 void updateShips(float deltaTime, bool fightActive) {
-    auto updateFleet = [&](std::vector<Ship>& fleet) {
+
+    auto updateFleet = [&](std::vector<Ship>& fleet, bool canDoManeuver) {
+
+        // Define boundaries
+        float empireLine = ImperialFleetPosition.z + 50.0f; // Where they turn back
+        float rebelLine = cruiserFleetPosition.z - 50.0f;     // Where they reset (Assuming Rebel fleet is at +Z)
+
         for (auto& ship : fleet) {
+            ship.stateTimer += deltaTime;
 
-            // MODIFY ROTATION
-            if (fightActive) {
-                float rPitch = ((rand() % 1000) / 1000.0f - 0.5f) * 2.0f;
-                float rYaw = ((rand() % 1000) / 1000.0f - 0.5f) * 2.0f;
-                float rRoll = ((rand() % 1000) / 1000.0f - 0.5f) * 2.0f;
+            switch (ship.state) {
 
-                ship.rotation.x += rPitch * deltaTime * 2.5f; // Pitch
-                ship.rotation.y += rYaw * deltaTime * 2.5f; // Yaw
-                ship.rotation.z += rRoll * deltaTime * 4.0f; // Roll
+                // PHASE 0: The Approach (Flying -Z towards Empire)
+            case APPROACHING:
+            {
+                // Random Jitter (Only if fighting)
+                if (fightActive) {
+                    float rPitch = ((rand() % 1000) / 1000.0f - 0.5f) * 2.0f;
+                    float rYaw = ((rand() % 1000) / 1000.0f - 0.5f) * 2.0f;
+                    float rRoll = ((rand() % 1000) / 1000.0f - 0.5f) * 2.0f;
+                    ship.rotation.x += rPitch * deltaTime * 2.5f;
+                    ship.rotation.y += rYaw * deltaTime * 2.5f;
+                    ship.rotation.z += rRoll * deltaTime * 4.0f;
+                }
+
+                // Move forward based on nose direction
+                glm::vec3 forward;
+                forward.x = sin(ship.rotation.y) * cos(ship.rotation.x);
+                forward.y = -sin(ship.rotation.x);
+                forward.z = cos(ship.rotation.y) * cos(ship.rotation.x);
+                forward = glm::normalize(forward);
+                ship.position += forward * (ship.speed * 60.0f * deltaTime);
+
+                // Check Arrival at Empire
+                if (canDoManeuver && ship.position.z < empireLine) {
+                    ship.state = EVASIVE_TURN;
+                    ship.stateTimer = 0.0f;
+                }
             }
+            break;
 
-            // CALCULATE FORWARD VECTOR
-            glm::vec3 forward;
-            forward.x = sin(ship.rotation.y) * cos(ship.rotation.x);
-            forward.y = -sin(ship.rotation.x);
-            forward.z = cos(ship.rotation.y) * cos(ship.rotation.x);
-            forward = glm::normalize(forward);
+            // PHASE 1: Turn 180 to face Home
+            case EVASIVE_TURN:
+            {
+                // Rotate Yaw 180 degrees (PI)
+                ship.rotation.y += 3.14159f * deltaTime; // 1 second turn
+                ship.position.z -= 10.0f * deltaTime;    // Momentum drift
 
-            // MOVE FORWARD
-            // Multiply by 60.0f to normalize speed across different framerates
-            ship.position += forward * (ship.speed * 60.0f * deltaTime);
+                if (ship.stateTimer >= 1.0f) {
+                    ship.state = EVASIVE_RUN;
+                    ship.stateTimer = 0.0f;
+                }
+            }
+            break;
+
+            // PHASE 2: Attack Run (Jittery escape)
+            case EVASIVE_RUN:
+            {
+                ship.position.z += (ship.speed * 80.0f) * deltaTime; // Fly +Z
+
+                // Jitter
+                ship.rotation.x += sin(glfwGetTime() * 15.0f) * 3.0f * deltaTime;
+                ship.rotation.z += cos(glfwGetTime() * 10.0f) * 3.0f * deltaTime;
+
+                if (ship.stateTimer >= 2.0f) {
+                    ship.state = STABILIZE;
+                    ship.stateTimer = 0.0f;
+                }
+            }
+            break;
+
+            // PHASE 3: Stabilize
+            case STABILIZE:
+            {
+                float lerpSpeed = 2.0f * deltaTime;
+                ship.rotation.x = ship.rotation.x * (1.0f - lerpSpeed);
+                ship.rotation.z = ship.rotation.z * (1.0f - lerpSpeed);
+
+                ship.position.z += (ship.speed * 80.0f) * deltaTime;
+
+                if (ship.stateTimer >= 1.5f) {
+                    ship.state = RETURNING; // Switch to returning mode
+                    ship.stateTimer = 0.0f;
+                }
+            }
+            break;
+
+            // PHASE 4: Return to Fleet (Flying +Z smoothly)
+            case RETURNING:
+            {
+                // Just fly straight towards Rebel Fleet (+Z)
+                ship.position.z += (ship.speed * 80.0f) * deltaTime;
+
+                // Check Arrival at Rebel Fleet
+                // Note: Assuming Rebel fleet is at Positive Z (e.g. 300)
+                if (ship.position.z > rebelLine) {
+                    ship.state = RESET_TURN;
+                    ship.stateTimer = 0.0f;
+                }
+            }
+            break;
+
+            // PHASE 5: Reset Turn (Turn 180 to face Empire again)
+            case RESET_TURN:
+            {
+                // Rotate Yaw 180 degrees (PI) to face -Z again
+                ship.rotation.y += 3.14159f * deltaTime;
+
+                // Slight forward momentum so they don't stop dead
+                ship.position.z += 10.0f * deltaTime;
+
+                if (ship.stateTimer >= 1.0f) {
+                    // RESTART THE LOOP
+                    ship.state = APPROACHING;
+                    ship.stateTimer = 0.0f;
+
+                    // Optional: Reset Pitch/Roll to perfectly 0 to clean up accumulation errors
+                    ship.rotation.x = 0.0f;
+                    ship.rotation.z = 0.0f;
+                }
+            }
+            break;
+            }
         }
         };
 
-    updateFleet(xWings);
-    updateFleet(aWings);
+    updateFleet(xWings, true);
+    updateFleet(aWings, true);
 }
 
 void processMovement() {
@@ -321,6 +435,28 @@ void processMovement() {
     glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
 }
 
+void renderSun(gps::Shader shader) {
+    shader.useShaderProgram();
+
+    glm::mat4 modelSun = glm::mat4(1.0f);
+
+    // Position: Far away along the light direction vector
+    modelSun = glm::translate(modelSun, sunPosition);
+
+    // Scale: Make it huge (Adjust 100.0f if your model is too small/big)
+    modelSun = glm::scale(modelSun, glm::vec3(100.0f));
+
+    // Rotation 
+    // modelSun = glm::rotate(modelSun, glm::radians(angle * 0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelSun));
+
+    glm::mat3 normalMatrixSun = glm::mat3(glm::inverseTranspose(view * modelSun));
+    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixSun));
+
+    sun.Draw(shader);
+}
+
 void initOpenGLWindow() {
     myWindow.Create(1024, 768, "OpenGL Starwars Project");
     glfwSetInputMode(myWindow.getWindow(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -335,12 +471,12 @@ void setWindowCallbacks() {
 void initSkybox()
 {
     std::vector<const GLchar*> faces;
-    faces.push_back("skybox/right.tga");
-    faces.push_back("skybox/left.tga");
-    faces.push_back("skybox/top.tga");
-    faces.push_back("skybox/bottom.tga");
-    faces.push_back("skybox/back.tga");
-    faces.push_back("skybox/front.tga");
+    faces.push_back("skybox/space_right1.tga");
+    faces.push_back("skybox/space_left2.tga");
+    faces.push_back("skybox/space_top3.tga");
+    faces.push_back("skybox/space_bottom4.tga");
+    faces.push_back("skybox/space_front5.tga");
+    faces.push_back("skybox/space_back6.tga");
     mySkyBox.Load(faces);
 }
 
@@ -357,6 +493,7 @@ void initOpenGLState() {
 
 void initModels() {
 
+    sun.LoadModel("models/sun/sun.obj");
     //Empire
     isd1.LoadModel("models/isd2/Imperial-Class-StarDestroyer.obj");
     deathStar.LoadModel("models/ds4/death_star_ii.obj");
@@ -398,13 +535,13 @@ void initUniforms() {
 	// create projection matrix
 	projection = glm::perspective(glm::radians(45.0f),
                                (float)myWindow.getWindowDimensions().width / (float)myWindow.getWindowDimensions().height,
-                               0.1f, 5000.0f);
+                               0.1f, 10000.0f);
 	projectionLoc = glGetUniformLocation(myBasicShader.shaderProgram, "projection");
 	// send projection matrix to shader
 	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));	
 
 	//set the light direction (direction towards the light)
-	lightDir = glm::vec3(0.0f, 1.0f, 1.0f);
+    lightDir = glm::normalize(lightPosition);
 	lightDirLoc = glGetUniformLocation(myBasicShader.shaderProgram, "lightDir");
 	// send light dir to shader
 	glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
@@ -537,17 +674,38 @@ void renderDeathStar(gps::Shader shader) {
     deathStar.Draw(shader);
 }
 
+void renderDebugDeathStar(gps::Shader shader) {
+    shader.useShaderProgram();
+
+    glm::mat4 modelDDS = glm::mat4(1.0f);
+
+    // Position: Exactly halfway between the Sun (3000) and the Scene (0)
+    modelDDS = glm::translate(modelDDS, glm::vec3(1500.0f, 1500.0f, 1500.0f));
+
+    // Scale: Reasonable size to see it clearly
+    //modelDDS = glm::scale(modelDDS, glm::vec3(5.0f));
+
+    // Send Uniforms
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelDDS));
+
+    glm::mat3 normalMatrixDDS = glm::mat3(glm::inverseTranspose(view * modelDDS));
+    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixDDS));
+
+    // Reuse the existing deathStar model
+    deathStar.Draw(shader);
+}
+
 void renderScene() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	//render the scene
-
+    //renderSun(myBasicShader);
 	// render the skybox
     mySkyBox.Draw(skyboxShader, view, projection);
     //Empire
     renderISD1(myBasicShader);
     renderDeathStar(myBasicShader);
-
+    //renderDebugDeathStar(myBasicShader);
     //Rebel Alliance
     renderXWings(myBasicShader);
     renderCruisers(myBasicShader);

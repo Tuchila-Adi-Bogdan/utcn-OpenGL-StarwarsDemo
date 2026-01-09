@@ -55,5 +55,7 @@ void main()
     //compute final vertex color
     vec3 color = min((ambient + diffuse) * texture(diffuseTexture, fTexCoords).rgb + specular * texture(specularTexture, fTexCoords).rgb, 1.0f);
 	//vec3 color = min((ambient + diffuse) + specular, 1.0f);
+	if(color.x == 0)
+        discard;
     fColor = vec4(color, 1.0f);
 }
