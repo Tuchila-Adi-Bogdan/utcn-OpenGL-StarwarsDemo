@@ -1,0 +1,190 @@
+# MTL file - created by a modified js OBJExporter
+
+newmtl 03_-_Defaultasdsad
+Tr 0.0000
+Tf 1.0000 1.0000 1.0000
+illum 1
+Pm 1
+Pr 1
+Pds 1
+Pl 1
+Ka 1 1 1
+Kd 0.06 0.06 0.06
+Ke 0 0 0
+map_Kd 03_-_Defaultasdsad.png
+map_Pm metalnessMap1.png
+map_Pr metalnessMap1.png
+norm normalMap1.png
+
+newmtl 06_-_Defaultasdsdaasdassadasdassd
+Tr 0.0000
+Tf 1.0000 1.0000 1.0000
+illum 1
+Pm 1
+Pr 1
+Pds 1
+Pl 1
+Ka 1 1 1
+Kd 1 1 1
+Ke 0 0 0
+map_Kd 06_-_Defaultasdsdaasdassadasdassd.png
+map_Pm metalnessMap2.png
+map_Pr metalnessMap2.png
+norm normalMap2.png
+map_Ka metalnessMap2.png
+
+newmtl 03_-_Defaultasdsadasdassda
+Tr 0.0000
+Tf 1.0000 1.0000 1.0000
+illum 1
+Pm 1
+Pr 0.62
+Pds 1
+Pl 1
+Ka 1 1 1
+Kd 0.01 0.01 0.01
+Ke 0 0 0
+map_Kd 06_-_Defaultasdsdaasdassadasdassd.png
+map_Pm metalnessMap3.png
+map_Pr metalnessMap3.png
+norm normalMap2.png
+map_Ka metalnessMap3.png
+
+newmtl 05_-_Defaultasdasd
+Tr 0.0000
+Tf 1.0000 1.0000 1.0000
+illum 1
+Pm 1
+Pr 1
+Pds 1
+Pl 1
+Ka 0.55 0.55 0.55
+Kd 0.17 0.17 0.17
+Ke 1 1 1
+map_Kd 05_-_Defaultasdasd.png
+map_Ke emissiveMap4.png
+map_Pm metalnessMap4.png
+map_Pr metalnessMap4.png
+norm normalMap2.png
+map_Ka metalnessMap4.png
+
+newmtl 03_-_Defaultasdsadasd
+Tr 0.0000
+Tf 1.0000 1.0000 1.0000
+illum 1
+Pm 1
+Pr 1
+Pds 1
+Pl 1
+Ka 1 1 1
+Kd 1 1 1
+Ke 0 0 0
+map_Kd 03_-_Defaultasdsadasd.png
+map_Pm metalnessMap2.png
+map_Pr metalnessMap2.png
+norm normalMap2.png
+map_Ka metalnessMap2.png
+
+newmtl 06_-_Default
+Tr 0.0000
+Tf 1.0000 1.0000 1.0000
+illum 1
+Pm 1
+Pr 1
+Pds 1
+Pl 1
+Ka 1 1 1
+Kd 0.05 0.05 0.05
+Ke 0.8 0.8 0.8
+map_Kd 06_-_Default.png
+map_Ke emissiveMap6.png
+map_Pm metalnessMap6.png
+map_Pr metalnessMap6.png
+norm normalMap2.png
+
+newmtl 06_-_Defaultasdsdaasdassad
+Tr 0.0000
+Tf 1.0000 1.0000 1.0000
+illum 1
+Pm 1
+Pr 1
+Pds 1
+Pl 1
+Ka 1 1 1
+Kd 0.03 0.03 0.03
+Ke 0 0 0
+map_Kd 06_-_Default.png
+map_Pm metalnessMap2.png
+map_Pr metalnessMap2.png
+norm normalMap2.png
+map_Ka metalnessMap2.png
+
+newmtl 06_-_Defaultasdsda
+Tr 0.0000
+Tf 1.0000 1.0000 1.0000
+illum 1
+Pm 1
+Pr 1
+Pds 1
+Pl 1
+Ka 1 1 1
+Kd 0.05 0.05 0.05
+Ke 0 0 0
+map_Kd 06_-_Default.png
+map_Pm metalnessMap8.png
+map_Pr metalnessMap8.png
+norm normalMap2.png
+map_Ka metalnessMap8.png
+
+newmtl 06_-_Defaultasdsdaasdassadasd
+Tr 0.0000
+Tf 1.0000 1.0000 1.0000
+illum 1
+Pm 1
+Pr 1
+Pds 1
+Pl 1
+Ka 1 1 1
+Kd 0 0 0
+Ke 0 0 0
+map_Kd 06_-_Default.png
+map_Pm metalnessMap2.png
+map_Pr metalnessMap2.png
+norm normalMap2.png
+map_Ka metalnessMap2.png
+
+newmtl 06_-_Defaultasdsdaasdaasdsdassadasdassdasasdss
+Tr 0.0000
+Tf 1.0000 1.0000 1.0000
+illum 1
+Pm 1
+Pr 1
+Pds 1
+Pl 1
+Ka 1 1 1
+Kd 0 0 0
+Ke 0 0 0
+map_Kd 05_-_Defaultasdasd.png
+map_Ke emissiveMap6.png
+map_Pm metalnessMap2.png
+map_Pr metalnessMap2.png
+norm normalMap10.png
+map_Ka ambientMap10.png
+
+newmtl 06_-_Defaultasdsdaasdaasdsdassadasdassdasasd
+Tr 0.0000
+Tf 1.0000 1.0000 1.0000
+illum 1
+Pm 1
+Pr 1
+Pds 1
+Pl 1
+Ka 0.67 0.67 0.67
+Kd 0.14 0.14 0.14
+Ke 0 0 0
+map_Kd 05_-_Defaultasdasd.png
+map_Ke emissiveMap6.png
+map_Pm metalnessMap3.png
+map_Pr metalnessMap3.png
+norm normalMap2.png
+map_Ka metalnessMap3.png

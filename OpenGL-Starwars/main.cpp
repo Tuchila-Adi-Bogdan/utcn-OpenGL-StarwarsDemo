@@ -59,6 +59,7 @@ GLfloat fleetSpeed = 0.5f; // How fast they move
 gps::Model3D teapot;
 gps::Model3D isd1;
 gps::Model3D xwing;
+gps::Model3D deathStar;
 
 GLfloat angle;
 
@@ -233,6 +234,7 @@ void initModels() {
     teapot.LoadModel("models/teapot/teapot20segUT.obj");
     isd1.LoadModel("models/isd2/Imperial-Class-StarDestroyer.obj");
     xwing.LoadModel("models/xwing4/x-wing-flyingv1.obj");
+    deathStar.LoadModel("models/ds4/death_star_ii.obj");
     initSkybox();
 }
 
@@ -264,7 +266,7 @@ void initUniforms() {
 	// create projection matrix
 	projection = glm::perspective(glm::radians(45.0f),
                                (float)myWindow.getWindowDimensions().width / (float)myWindow.getWindowDimensions().height,
-                               0.1f, 1000.0f);
+                               0.1f, 5000.0f);
 	projectionLoc = glGetUniformLocation(myBasicShader.shaderProgram, "projection");
 	// send projection matrix to shader
 	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));	
@@ -381,6 +383,30 @@ void renderISD1(gps::Shader shader) {
     }
 }
 
+void renderDeathStar(gps::Shader shader) {
+    shader.useShaderProgram();
+
+    glm::mat4 modelDS = glm::mat4(1.0f);
+
+    // 1. Position: Far in the background, slightly elevated
+    modelDS = glm::translate(modelDS, glm::vec3(0.0f, 50.0f, -800.0f));
+
+    // 2. Scale: Massive size
+    //modelDS = glm::scale(modelDS, glm::vec3(10.0f));
+
+    // 3. Rotation: Slow rotation based on the global 'angle' variable
+    // Dividing angle by 10 makes it rotate very slowly and ominously
+    modelDS = glm::rotate(modelDS, glm::radians(angle / 10.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+    // Send uniforms
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelDS));
+
+    glm::mat3 normalMatrixDS = glm::mat3(glm::inverseTranspose(view * modelDS));
+    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixDS));
+
+    deathStar.Draw(shader);
+}
+
 void renderScene() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -391,6 +417,7 @@ void renderScene() {
 	renderTeapot(myBasicShader);
     renderISD1(myBasicShader);
     renderXWings(myBasicShader);
+    renderDeathStar(myBasicShader);
 }
 
 void cleanup() {
