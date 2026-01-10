@@ -70,6 +70,10 @@ glm::vec3 awingFleetPosition(0.0f, 0.0f, 880.0f);
 glm::vec3 sunPosition = glm::vec3(3000.0f, 3000.0f, 3000.0f);
 glm::vec3 lightPosition = glm::vec3(2500.0f, 2500.0f, 2500.0f);
 
+gps::Model3D laserBeam; // Load your beam object here
+float beamProgress = 0.0f; // 0.0 = At Death Star, 1.0 = Hit Cruiser
+glm::vec3 dsDishPos(130.0f, 200.0f, -800.0f); // Adjust to match your Death Star model dish
+
 // SHIP DATA STRUCTURE
 enum ShipState {
     APPROACHING,
@@ -108,6 +112,7 @@ gps::Model3D xwing;
 gps::Model3D awing;
 gps::Model3D cruiser;
 gps::Model3D transport;
+gps::Model3D explosion;
 
 GLfloat angle;
 
@@ -410,13 +415,16 @@ void processMovement() {
         updateShips(deltaTime, true);
         ImperialFleetPosition.z += capitalShipSpeed;
         cruiserFleetPosition.z -= capitalShipSpeed;
-
+        if (beamProgress < 1.0f) {
+            beamProgress += 0.3f * deltaTime;
+        }
     }
     else {
         isSpaceHeld = false;
     }
 
     if (pressedKeys[GLFW_KEY_K]) {
+        beamProgress = 0.0f;
         ImperialFleetPosition = ImperialFleetPositionDefault;
         cruiserFleetPosition = cruiserFleetPositionDefault;
 
@@ -433,6 +441,66 @@ void processMovement() {
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
     glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
+}
+
+void renderSuperlaser(gps::Shader shader) {
+    shader.useShaderProgram();
+
+    // 1. Define Start and End Points
+    glm::vec3 start = dsDishPos;
+    glm::vec3 target = cruiserFleetPosition; // Center Cruiser
+
+    // 2. Calculate the "Tip" of the beam (Current location of the energy)
+    // This is Linear Interpolation (Lerp)
+    glm::vec3 currentTip = start + (target - start) * beamProgress;
+
+    // 3. SEND LIGHT TO SHADER
+    // The light source is at the tip of the beam
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightPos"), 1, glm::value_ptr(currentTip));
+
+    // Powerful Green Light (RGB: 0, 5, 0) -> Values > 1 make it look glowing/bright
+    glm::vec3 greenColor = glm::vec3(0.0f, 5.0f, 0.0f);
+
+    // Only turn the light on if we are firing
+    if (beamProgress <= 0.01f) greenColor = glm::vec3(0.0f);
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightColor"), 1, glm::value_ptr(greenColor));
+
+    // 4. DRAW THE BEAM MESH
+    if (beamProgress > 0.01f) {
+        glm::mat4 modelBeam = glm::mat4(1.0f);
+
+        // A. Move to Start Position
+        modelBeam = glm::translate(modelBeam, start);
+
+        // B. Rotate to face the Target
+        // Calculate the direction vector
+        glm::vec3 direction = glm::normalize(target - start);
+
+        // Create a rotation matrix that looks at 'direction' from 'start'
+        // We use a helper or glm::lookAt inverse logic.
+        // Quick/Dirty way: Use LookAt but invert it because LookAt is for View matrices
+        glm::mat4 rotation = glm::inverse(glm::lookAt(start, target, glm::vec3(0, 1, 0)));
+        // Extract just the rotation part (remove translation from that matrix)
+        rotation[3] = glm::vec4(0, 0, 0, 1);
+        modelBeam = modelBeam * rotation;
+
+        // C. Rotate cylinder to align with Z-axis (Models usually point UP (Y), we need them to point Forward (Z))
+        // Adjust this depending on your model's default orientation!
+        modelBeam = glm::rotate(modelBeam, glm::radians(-90.0f), glm::vec3(1, 0, 0));
+
+        // D. Scale the length
+        // Calculate total distance
+        //float totalDist = glm::distance(start, target);
+        float currentLength = glm::distance(start, target) * beamProgress;
+        modelBeam = glm::scale(modelBeam, glm::vec3(5.0f, currentLength / 2.5f, 5.0f));
+        modelBeam = glm::translate(modelBeam, glm::vec3(0.0f, 1.0f, 0.0f));
+        // Send Uniforms
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelBeam));
+        glm::mat3 normalMatrixBeam = glm::mat3(glm::inverseTranspose(view * modelBeam));
+        glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixBeam));
+
+        laserBeam.Draw(shader);
+    }
 }
 
 void renderSun(gps::Shader shader) {
@@ -493,7 +561,7 @@ void initOpenGLState() {
 
 void initModels() {
 
-    sun.LoadModel("models/sun/sun.obj");
+    //sun.LoadModel("models/sun/sun.obj");
     //Empire
     isd1.LoadModel("models/isd2/Imperial-Class-StarDestroyer.obj");
     deathStar.LoadModel("models/ds4/death_star_ii.obj");
@@ -502,6 +570,8 @@ void initModels() {
     xwing.LoadModel("models/xwing4/x-wing.obj");
     awing.LoadModel("models/awing/A-Wing.obj");
     cruiser.LoadModel("models/cruiser/cruiser.obj");
+    laserBeam.LoadModel("models/beam2/beam.obj");
+    explosion.LoadModel("models/explosion/source/explosion.obj");
     //transport.LoadModel("models/transport/transport.obj");
     //Skybox
     initSkybox();
@@ -663,7 +733,7 @@ void renderDeathStar(gps::Shader shader) {
     modelDS = glm::translate(modelDS, glm::vec3(0.0f, 50.0f, -800.0f));
 
     // Rotation
-    modelDS = glm::rotate(modelDS, glm::radians(30.0f + (angle / 10.0f)), glm::vec3(0.0f, 1.0f, 0.0f));
+    modelDS = glm::rotate(modelDS, glm::radians(-70.0f + (angle / 10.0f)), glm::vec3(0.0f, 1.0f, 0.0f));
 
     // Send uniforms
     glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelDS));
@@ -695,6 +765,26 @@ void renderDebugDeathStar(gps::Shader shader) {
     deathStar.Draw(shader);
 }
 
+void renderExplosion(gps::Shader shader) {
+    shader.useShaderProgram();
+
+    glm::mat4 modelDDS = glm::mat4(1.0f);
+
+    modelDDS = glm::translate(modelDDS, glm::vec3(0.0f, 0.0f, 0.0f));
+
+    // Scale: Reasonable size to see it clearly
+    modelDDS = glm::scale(modelDDS, glm::vec3(5.0f));
+
+    // Send Uniforms
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelDDS));
+
+    glm::mat3 normalMatrixDDS = glm::mat3(glm::inverseTranspose(view * modelDDS));
+    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixDDS));
+
+    // Reuse the existing deathStar model
+    explosion.Draw(shader);
+}
+
 void renderScene() {
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -710,6 +800,8 @@ void renderScene() {
     renderXWings(myBasicShader);
     renderCruisers(myBasicShader);
     renderAWings(myBasicShader);
+    renderSuperlaser(myBasicShader);
+    renderExplosion(myBasicShader);
 }
 
 void cleanup() {
