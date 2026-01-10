@@ -21,6 +21,8 @@
 #include <iostream>
 #include "SkyBox.hpp"
 
+#define ShipLaserSpeed 2.0f
+
 // window
 gps::Window myWindow;
 
@@ -112,6 +114,16 @@ glm::vec3 isdOffsets[] = {
     // Note: The 8th ship (Command Top) is excluded for now
 };
 int isdKeys[] = { GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5, GLFW_KEY_6, GLFW_KEY_7 };
+
+struct RebelLaserShot {
+    bool active = false;
+    float progress = 0.0f;
+    glm::vec3 startPos;
+    int targetISDIndex; // Index 0-7 of the ISD array
+};
+
+std::vector<RebelLaserShot> rebelLasers; // Vector to store the volley
+
 // Global Fleets
 std::vector<Ship> xWings;
 std::vector<Ship> aWings;
@@ -134,7 +146,7 @@ gps::Model3D awing;
 gps::Model3D cruiser;
 gps::Model3D transport;
 gps::Model3D explosion;
-
+gps::Model3D redLaserBeam;
 GLfloat angle;
 
 // shaders
@@ -443,6 +455,28 @@ void fireISDLaser(LaserShot& laser, glm::vec3 shooterPos) {
     }
 }
 
+void fireRebelVolley() {
+
+    auto addShot = [](glm::vec3 start) {
+        RebelLaserShot shot;
+        shot.active = true;
+        shot.progress = 0.0f;
+        shot.startPos = start;
+        shot.targetISDIndex = rand() % 7; // Pick random ISD (0 to 6)
+        rebelLasers.push_back(shot);
+        };
+
+    // 1. All X-Wings Fire
+    for (const auto& ship : xWings) {
+        addShot(ship.position);
+    }
+
+    // 2. All A-Wings Fire
+    for (const auto& ship : aWings) {
+        addShot(ship.position);
+    }
+}
+
 void processMovement() {
     if (!shipsInitialized) initFighterFleets();
 
@@ -464,7 +498,6 @@ void processMovement() {
         model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0, 1, 0));
     }
 
-    // --- LOGIC STARTS HERE ---
     if (pressedKeys[GLFW_KEY_SPACE]) {
         isSpaceHeld = true;
         updateShips(deltaTime, true);
@@ -472,22 +505,21 @@ void processMovement() {
         cruiserFleetPosition.z -= capitalShipSpeed;
 
         if (!hasHit) {
-            // PHASE 1: Move Bullet
+            // Death Star laser
             beamProgress += 0.3f * deltaTime;
             if (beamProgress >= 1.0f) {
                 beamProgress = 1.0f;
-                hasHit = true; // Trigger Hit
+                hasHit = true;
             }
         }
         else {
-            // PHASE 2: Scale Explosion (Only if Space is held)
+            // MC Cruiser explosion
             if (explosionProgress < 1.0f) {
                 explosionProgress += deltaTime * explosionSpeed;
             }
         }
-
+        // ISD Fire
         for (int i = 0; i < 7; i++) {
-            // 1. Fire Logic
             if (pressedKeys[isdKeys[i]]) {
                 // Calculate Turret Position: Fleet Pos + Ship Offset + Turret Offset
                 // Turret Offset: slightly down (-10) and forward (50) to shoot from the nose/hangar
@@ -498,7 +530,7 @@ void processMovement() {
 
             // 2. Update Progress (Only if active)
             if (isdLasers[i].active && isdLasers[i].targetShip != nullptr) {
-                isdLasers[i].progress += 3.0f * deltaTime; // Speed of laser
+                isdLasers[i].progress += ShipLaserSpeed * deltaTime;
 
                 if (isdLasers[i].progress >= 1.0f) {
                     isdLasers[i].progress = 1.0f;
@@ -507,10 +539,39 @@ void processMovement() {
                 }
             }
         }
+        // Rebel small ships fire
+        if (pressedKeys[GLFW_KEY_P]) {
+            fireRebelVolley();
+        }
+
+        // 2. Update Rebel Lasers (Move them forward)
+        // We use a normal for-loop so we can remove finished shots easily
+        for (auto it = rebelLasers.begin(); it != rebelLasers.end(); ) {
+            if (it->active) {
+                it->progress += ShipLaserSpeed * deltaTime; 
+
+                if (it->progress >= 1.0f) {
+                    it->active = false;
+                    it = rebelLasers.erase(it); // Remove hit shots
+                    // Optional: Add explosion logic on ISDs here
+                }
+                else {
+                    ++it;
+                }
+            }
+            else {
+                ++it;
+            }
+        }
     }
     else {
         isSpaceHeld = false;
     }
+
+    if (pressedKeys[GLFW_KEY_P]) {
+        fireRebelVolley();
+    }
+
 
     // RESET logic
     if (pressedKeys[GLFW_KEY_K]) {
@@ -538,6 +599,50 @@ void processMovement() {
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
     glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
+}
+
+void renderRebelLasers(gps::Shader shader) {
+    shader.useShaderProgram();
+
+    for (const auto& laser : rebelLasers) {
+        if (!laser.active) continue;
+
+        glm::vec3 start = laser.startPos;
+
+        // Calculate Target Position: Fleet Pos + ISD Offset
+        // We add a slight offset (0, 10, 50) to hit the hull, not the center pivot
+        glm::vec3 target = ImperialFleetPosition + isdOffsets[laser.targetISDIndex] + glm::vec3(0.0f, 10.0f, 50.0f);
+
+        // Lerp position
+        glm::vec3 currentPos = start + (target - start) * laser.progress;
+
+        // 1. RED LIGHT
+        glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightPos"), 1, glm::value_ptr(currentPos));
+        glm::vec3 redColor = glm::vec3(5.0f, 0.0f, 0.0f); // Bright Red
+        glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightColor"), 1, glm::value_ptr(redColor));
+
+        // 2. RENDER BEAM
+        glm::mat4 modelBeam = glm::mat4(1.0f);
+        modelBeam = glm::translate(modelBeam, currentPos);
+
+        // Orientation
+        if (glm::length(target - start) > 0.1f) {
+            glm::mat4 rotation = glm::inverse(glm::lookAt(currentPos, start, glm::vec3(0, 1, 0)));
+            rotation[3] = glm::vec4(0, 0, 0, 1);
+            modelBeam = modelBeam * rotation;
+        }
+
+        modelBeam = glm::rotate(modelBeam, glm::radians(-90.0f), glm::vec3(1, 0, 0));
+        modelBeam = glm::scale(modelBeam, glm::vec3(0.8f, 3.0f, 0.8f)); // Smaller bolts for fighters
+
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelBeam));
+        glm::mat3 normalMatrixBeam = glm::mat3(glm::inverseTranspose(view * modelBeam));
+        glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixBeam));
+
+        glUniform1f(glGetUniformLocation(shader.shaderProgram, "tilingFactor"), 1.0f);
+
+        redLaserBeam.Draw(shader);
+    }
 }
 
 void renderISDLaser(gps::Shader shader, LaserShot& laser) {
@@ -716,6 +821,7 @@ void initModels() {
     awing.LoadModel("models/awing/A-Wing.obj");
     cruiser.LoadModel("models/cruiser/cruiser.obj");
     laserBeam.LoadModel("models/beam2/beam.obj");
+    redLaserBeam.LoadModel("models/beam/beam.obj");
     explosion.LoadModel("models/explosion/source/explosion.obj");
     //transport.LoadModel("models/transport/transport.obj");
     //Skybox
@@ -950,6 +1056,7 @@ void renderScene() {
     for (int i = 0; i < 7; i++) {
         renderISDLaser(myBasicShader, isdLasers[i]);
     }
+    renderRebelLasers(myBasicShader);
 }
 
 void cleanup() {
