@@ -1,9 +1,9 @@
 #if defined (__APPLE__)
-    #define GLFW_INCLUDE_GLCOREARB
-    #define GL_SILENCE_DEPRECATION
+#define GLFW_INCLUDE_GLCOREARB
+#define GL_SILENCE_DEPRECATION
 #else
-    #define GLEW_STATIC
-    #include <GL/glew.h>
+#define GLEW_STATIC
+#include <GL/glew.h>
 #endif
 
 #include <GLFW/glfw3.h>
@@ -100,6 +100,7 @@ std::vector<Ship> aWings;
 bool shipsInitialized = false;
 bool isSpaceHeld = false;
 double lastFrameTime = 0.0;
+bool hasHit = false;
 
 // models
 gps::Model3D sun;
@@ -123,48 +124,52 @@ gps::Shader myBasicShader;
 gps::SkyBox mySkyBox;
 gps::Shader skyboxShader;
 
-GLenum glCheckError_(const char *file, int line)
+float explosionProgress = 0.0f; // 0.0 = Start, 1.0 = Finished
+float explosionSpeed = 1.5f;    // How fast it scales up
+
+GLenum glCheckError_(const char* file, int line)
 {
-	GLenum errorCode;
-	while ((errorCode = glGetError()) != GL_NO_ERROR) {
-		std::string error;
-		switch (errorCode) {
-            case GL_INVALID_ENUM:
-                error = "INVALID_ENUM";
-                break;
-            case GL_INVALID_VALUE:
-                error = "INVALID_VALUE";
-                break;
-            case GL_INVALID_OPERATION:
-                error = "INVALID_OPERATION";
-                break;
-            case GL_OUT_OF_MEMORY:
-                error = "OUT_OF_MEMORY";
-                break;
-            case GL_INVALID_FRAMEBUFFER_OPERATION:
-                error = "INVALID_FRAMEBUFFER_OPERATION";
-                break;
+    GLenum errorCode;
+    while ((errorCode = glGetError()) != GL_NO_ERROR) {
+        std::string error;
+        switch (errorCode) {
+        case GL_INVALID_ENUM:
+            error = "INVALID_ENUM";
+            break;
+        case GL_INVALID_VALUE:
+            error = "INVALID_VALUE";
+            break;
+        case GL_INVALID_OPERATION:
+            error = "INVALID_OPERATION";
+            break;
+        case GL_OUT_OF_MEMORY:
+            error = "OUT_OF_MEMORY";
+            break;
+        case GL_INVALID_FRAMEBUFFER_OPERATION:
+            error = "INVALID_FRAMEBUFFER_OPERATION";
+            break;
         }
-		std::cout << error << " | " << file << " (" << line << ")" << std::endl;
-	}
-	return errorCode;
+        std::cout << error << " | " << file << " (" << line << ")" << std::endl;
+    }
+    return errorCode;
 }
 #define glCheckError() glCheckError_(__FILE__, __LINE__)
 
 void windowResizeCallback(GLFWwindow* window, int width, int height) {
-	fprintf(stdout, "Window resized! New width: %d , and height: %d\n", width, height);
-	//TODO
+    fprintf(stdout, "Window resized! New width: %d , and height: %d\n", width, height);
+    //TODO
 }
 
 void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int mode) {
-	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GL_TRUE);
     }
 
-	if (key >= 0 && key < 1024) {
+    if (key >= 0 && key < 1024) {
         if (action == GLFW_PRESS) {
             pressedKeys[key] = true;
-        } else if (action == GLFW_RELEASE) {
+        }
+        else if (action == GLFW_RELEASE) {
             pressedKeys[key] = false;
         }
     }
@@ -397,6 +402,7 @@ void processMovement() {
     float deltaTime = (float)(currentTime - lastFrameTime);
     lastFrameTime = currentTime;
 
+    // Camera
     if (pressedKeys[GLFW_KEY_W]) myCamera.move(gps::MOVE_FORWARD, cameraSpeed);
     if (pressedKeys[GLFW_KEY_S]) myCamera.move(gps::MOVE_BACKWARD, cameraSpeed);
     if (pressedKeys[GLFW_KEY_A]) myCamera.move(gps::MOVE_LEFT, cameraSpeed);
@@ -410,32 +416,46 @@ void processMovement() {
         model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0, 1, 0));
     }
 
+    // --- LOGIC STARTS HERE ---
     if (pressedKeys[GLFW_KEY_SPACE]) {
         isSpaceHeld = true;
         updateShips(deltaTime, true);
         ImperialFleetPosition.z += capitalShipSpeed;
         cruiserFleetPosition.z -= capitalShipSpeed;
-        if (beamProgress < 1.0f) {
+
+        if (!hasHit) {
+            // PHASE 1: Move Bullet
             beamProgress += 0.3f * deltaTime;
+            if (beamProgress >= 1.0f) {
+                beamProgress = 1.0f;
+                hasHit = true; // Trigger Hit
+            }
+        }
+        else {
+            // PHASE 2: Scale Explosion (Only if Space is held)
+            if (explosionProgress < 1.0f) {
+                explosionProgress += deltaTime * explosionSpeed;
+            }
         }
     }
     else {
         isSpaceHeld = false;
     }
 
+    // RESET logic
     if (pressedKeys[GLFW_KEY_K]) {
         beamProgress = 0.0f;
+        hasHit = false;
+        explosionProgress = 0.0f; // Reset explosion
         ImperialFleetPosition = ImperialFleetPositionDefault;
         cruiserFleetPosition = cruiserFleetPositionDefault;
-
-        // Reset Fleets
         xWings.clear();
         aWings.clear();
         shipsInitialized = false;
-
         isSpaceHeld = false;
     }
 
+    // Shader updates
     view = myCamera.getViewMatrix();
     myBasicShader.useShaderProgram();
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
@@ -446,58 +466,61 @@ void processMovement() {
 void renderSuperlaser(gps::Shader shader) {
     shader.useShaderProgram();
 
-    // 1. Define Start and End Points
+    // 1. Define Trajectory
     glm::vec3 start = dsDishPos;
-    glm::vec3 target = cruiserFleetPosition; // Center Cruiser
+    glm::vec3 target = cruiserFleetPosition;
 
-    // 2. Calculate the "Tip" of the beam (Current location of the energy)
-    // This is Linear Interpolation (Lerp)
-    glm::vec3 currentTip = start + (target - start) * beamProgress;
+    // 2. Calculate Current Position (The Bullet's location)
+    // Lerp: We move from 'start' to 'target' based on beamProgress (0.0 to 1.0)
+    glm::vec3 currentPos = start + (target - start) * beamProgress;
 
-    // 3. SEND LIGHT TO SHADER
-    // The light source is at the tip of the beam
-    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightPos"), 1, glm::value_ptr(currentTip));
+    // 3. LIGHTING (Move the light with the bullet)
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightPos"), 1, glm::value_ptr(currentPos));
 
-    // Powerful Green Light (RGB: 0, 5, 0) -> Values > 1 make it look glowing/bright
+    // Green Light
     glm::vec3 greenColor = glm::vec3(0.0f, 5.0f, 0.0f);
 
-    // Only turn the light on if we are firing
-    if (beamProgress <= 0.01f) greenColor = glm::vec3(0.0f);
+    // Turn off light if we haven't fired or if we hit the target
+    if (beamProgress <= 0.01f || beamProgress >= 1.0f) {
+        greenColor = glm::vec3(0.0f);
+    }
     glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightColor"), 1, glm::value_ptr(greenColor));
 
-    // 4. DRAW THE BEAM MESH
-    if (beamProgress > 0.01f) {
+    // 4. DRAW THE BULLET
+    // We only draw if the beam is in flight (between 0% and 100%)
+    if (beamProgress > 0.01f && beamProgress < 1.0f) {
+
         glm::mat4 modelBeam = glm::mat4(1.0f);
 
-        // A. Move to Start Position
-        modelBeam = glm::translate(modelBeam, start);
+        // A. Move to the Current Position (Translation)
+        modelBeam = glm::translate(modelBeam, currentPos);
 
         // B. Rotate to face the Target
-        // Calculate the direction vector
+        // We calculate the direction from Start to Target
         glm::vec3 direction = glm::normalize(target - start);
 
-        // Create a rotation matrix that looks at 'direction' from 'start'
-        // We use a helper or glm::lookAt inverse logic.
-        // Quick/Dirty way: Use LookAt but invert it because LookAt is for View matrices
+        // Create rotation matrix looking at target
+        // We use 'start' and 'target' for the LookAt to get the angle, 
+        // then remove the translation part so it's just a rotation.
         glm::mat4 rotation = glm::inverse(glm::lookAt(start, target, glm::vec3(0, 1, 0)));
-        // Extract just the rotation part (remove translation from that matrix)
-        rotation[3] = glm::vec4(0, 0, 0, 1);
+        rotation[3] = glm::vec4(0, 0, 0, 1); // Reset position, keep rotation
         modelBeam = modelBeam * rotation;
 
-        // C. Rotate cylinder to align with Z-axis (Models usually point UP (Y), we need them to point Forward (Z))
-        // Adjust this depending on your model's default orientation!
+        // C. Align Cylinder (Models usually point UP Y, we need them Forward Z)
         modelBeam = glm::rotate(modelBeam, glm::radians(-90.0f), glm::vec3(1, 0, 0));
 
-        // D. Scale the length
-        // Calculate total distance
-        //float totalDist = glm::distance(start, target);
-        float currentLength = glm::distance(start, target) * beamProgress;
-        modelBeam = glm::scale(modelBeam, glm::vec3(5.0f, currentLength / 2.5f, 5.0f));
-        modelBeam = glm::translate(modelBeam, glm::vec3(0.0f, 1.0f, 0.0f));
+        // D. FIXED SCALE (This makes it a bullet, not a beam)
+        // Length of 20.0f (10.0f * 2 units high cylinder)
+        // Width of 5.0f
+        modelBeam = glm::scale(modelBeam, glm::vec3(5.0f, 10.0f, 5.0f));
+
         // Send Uniforms
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelBeam));
         glm::mat3 normalMatrixBeam = glm::mat3(glm::inverseTranspose(view * modelBeam));
         glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixBeam));
+
+        // Reset tiling so the texture maps simply onto the bullet
+        glUniform1f(glGetUniformLocation(shader.shaderProgram, "tilingFactor"), 1.0f);
 
         laserBeam.Draw(shader);
     }
@@ -531,7 +554,7 @@ void initOpenGLWindow() {
 }
 
 void setWindowCallbacks() {
-	glfwSetWindowSizeCallback(myWindow.getWindow(), windowResizeCallback);
+    glfwSetWindowSizeCallback(myWindow.getWindow(), windowResizeCallback);
     glfwSetKeyCallback(myWindow.getWindow(), keyboardCallback);
     glfwSetCursorPosCallback(myWindow.getWindow(), mouseCallback);
 }
@@ -549,14 +572,14 @@ void initSkybox()
 }
 
 void initOpenGLState() {
-	glClearColor(0.7f, 0.7f, 0.7f, 1.0f);
-	glViewport(0, 0, myWindow.getWindowDimensions().width, myWindow.getWindowDimensions().height);
+    glClearColor(0.7f, 0.7f, 0.7f, 1.0f);
+    glViewport(0, 0, myWindow.getWindowDimensions().width, myWindow.getWindowDimensions().height);
     glEnable(GL_FRAMEBUFFER_SRGB);
-	glEnable(GL_DEPTH_TEST); // enable depth-testing
-	glDepthFunc(GL_LESS); // depth-testing interprets a smaller value as "closer"
-	glEnable(GL_CULL_FACE); // cull face
-	glCullFace(GL_BACK); // cull back face
-	glFrontFace(GL_CCW); // GL_CCW for counter clock-wise
+    glEnable(GL_DEPTH_TEST); // enable depth-testing
+    glDepthFunc(GL_LESS); // depth-testing interprets a smaller value as "closer"
+    glEnable(GL_CULL_FACE); // cull face
+    glCullFace(GL_BACK); // cull back face
+    glFrontFace(GL_CCW); // GL_CCW for counter clock-wise
 }
 
 void initModels() {
@@ -578,7 +601,7 @@ void initModels() {
 }
 
 void initShaders() {
-	myBasicShader.loadShader(
+    myBasicShader.loadShader(
         "shaders/basic.vert",
         "shaders/basic.frag");
     skyboxShader.loadShader("shaders/skyboxShader.vert", "shaders/skyboxShader.frag");
@@ -586,41 +609,41 @@ void initShaders() {
 }
 
 void initUniforms() {
-	myBasicShader.useShaderProgram();
+    myBasicShader.useShaderProgram();
 
     // create model matrix for teapot
     model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
-	modelLoc = glGetUniformLocation(myBasicShader.shaderProgram, "model");
+    modelLoc = glGetUniformLocation(myBasicShader.shaderProgram, "model");
 
-	// get view matrix for current camera
-	view = myCamera.getViewMatrix();
-	viewLoc = glGetUniformLocation(myBasicShader.shaderProgram, "view");
-	// send view matrix to shader
+    // get view matrix for current camera
+    view = myCamera.getViewMatrix();
+    viewLoc = glGetUniformLocation(myBasicShader.shaderProgram, "view");
+    // send view matrix to shader
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
 
     // compute normal matrix for teapot
-    normalMatrix = glm::mat3(glm::inverseTranspose(view*model));
-	normalMatrixLoc = glGetUniformLocation(myBasicShader.shaderProgram, "normalMatrix");
+    normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
+    normalMatrixLoc = glGetUniformLocation(myBasicShader.shaderProgram, "normalMatrix");
 
-	// create projection matrix
-	projection = glm::perspective(glm::radians(45.0f),
-                               (float)myWindow.getWindowDimensions().width / (float)myWindow.getWindowDimensions().height,
-                               0.1f, 10000.0f);
-	projectionLoc = glGetUniformLocation(myBasicShader.shaderProgram, "projection");
-	// send projection matrix to shader
-	glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));	
+    // create projection matrix
+    projection = glm::perspective(glm::radians(45.0f),
+        (float)myWindow.getWindowDimensions().width / (float)myWindow.getWindowDimensions().height,
+        0.1f, 10000.0f);
+    projectionLoc = glGetUniformLocation(myBasicShader.shaderProgram, "projection");
+    // send projection matrix to shader
+    glUniformMatrix4fv(projectionLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
-	//set the light direction (direction towards the light)
+    //set the light direction (direction towards the light)
     lightDir = glm::normalize(lightPosition);
-	lightDirLoc = glGetUniformLocation(myBasicShader.shaderProgram, "lightDir");
-	// send light dir to shader
-	glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
+    lightDirLoc = glGetUniformLocation(myBasicShader.shaderProgram, "lightDir");
+    // send light dir to shader
+    glUniform3fv(lightDirLoc, 1, glm::value_ptr(lightDir));
 
-	//set light color
-	lightColor = glm::vec3(1.0f, 1.0f, 1.0f); //white light
-	lightColorLoc = glGetUniformLocation(myBasicShader.shaderProgram, "lightColor");
-	// send light color to shader
-	glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
+    //set light color
+    lightColor = glm::vec3(1.0f, 1.0f, 1.0f); //white light
+    lightColorLoc = glGetUniformLocation(myBasicShader.shaderProgram, "lightColor");
+    // send light color to shader
+    glUniform3fv(lightColorLoc, 1, glm::value_ptr(lightColor));
 }
 
 void renderXWings(gps::Shader shader) {
@@ -672,23 +695,25 @@ void renderCruisers(gps::Shader shader) {
     shader.useShaderProgram();
 
     glm::vec3 cruisersOffsets[] = {
-        glm::vec3(-250.0f,  0.0f,  0.0f), // Left Cruiser
-        glm::vec3(0.0f,  0.0f,  0.0f), // Center Cruiser
-        glm::vec3(250.0f,  0.0f,  0.0f)  // Right Cruiser
+        glm::vec3(-250.0f,  0.0f,  0.0f), // Left
+        glm::vec3(0.0f,  0.0f,  0.0f),    // Center
+        glm::vec3(250.0f,  0.0f,  0.0f)   // Right
     };
 
     for (int i = 0; i < 3; i++) {
-        glm::mat4 modelM = glm::mat4(1.0f);
-        
-        // position updates
-        modelM = glm::translate(modelM, cruiserFleetPosition + cruisersOffsets[i]);
+        // --- LOGIC: Hide Center Cruiser on Hit ---
+        if (i == 1 && hasHit) continue;
+        // -----------------------------------------
 
+        glm::mat4 modelM = glm::mat4(1.0f);
+        modelM = glm::translate(modelM, cruiserFleetPosition + cruisersOffsets[i]);
         modelM = glm::scale(modelM, glm::vec3(0.05f));
         modelM = glm::rotate(modelM, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelM));
         glm::mat3 normalMatrixM = glm::mat3(glm::inverseTranspose(view * modelM));
-        glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixM));cruiser.Draw(shader);
+        glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixM));
+        cruiser.Draw(shader);
     }
 }
 
@@ -766,31 +791,41 @@ void renderDebugDeathStar(gps::Shader shader) {
 }
 
 void renderExplosion(gps::Shader shader) {
+    // 1. Only draw if we hit AND explosion isn't finished yet
+    if (!hasHit || explosionProgress >= 1.0f) return;
+
     shader.useShaderProgram();
 
-    glm::mat4 modelDDS = glm::mat4(1.0f);
+    glm::mat4 modelExp = glm::mat4(1.0f);
 
-    modelDDS = glm::translate(modelDDS, glm::vec3(0.0f, 0.0f, 0.0f));
+    // 2. Move to Center Cruiser Position
+    modelExp = glm::translate(modelExp, cruiserFleetPosition);
 
-    // Scale: Reasonable size to see it clearly
-    modelDDS = glm::scale(modelDDS, glm::vec3(5.0f));
+    // 3. Scale Up (0 to 10x) based on progress
+    float currentScale = explosionProgress * 100.0f;
+    modelExp = glm::scale(modelExp, glm::vec3(currentScale));
 
-    // Send Uniforms
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelDDS));
+    // 4. Send Uniforms
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelExp));
+    glm::mat3 normalMatrixExp = glm::mat3(glm::inverseTranspose(view * modelExp));
+    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixExp));
 
-    glm::mat3 normalMatrixDDS = glm::mat3(glm::inverseTranspose(view * modelDDS));
-    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixDDS));
+    // 5. Light Effect (Yellow/Orange Flash)
+    // Position light at explosion center
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightPos"), 1, glm::value_ptr(cruiserFleetPosition));
+    // Bright Yellow color
+    glm::vec3 yellowColor = glm::vec3(5.0f, 3.0f, 0.0f);
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightColor"), 1, glm::value_ptr(yellowColor));
 
-    // Reuse the existing deathStar model
     explosion.Draw(shader);
 }
 
 void renderScene() {
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	//render the scene
+    //render the scene
     //renderSun(myBasicShader);
-	// render the skybox
+    // render the skybox
     mySkyBox.Draw(skyboxShader, view, projection);
     //Empire
     renderISD1(myBasicShader);
@@ -809,35 +844,36 @@ void cleanup() {
     //cleanup code for your own data
 }
 
-int main(int argc, const char * argv[]) 
+int main(int argc, const char* argv[])
 {
     bool firstMouse = true;
     try {
         initOpenGLWindow();
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
 
     initOpenGLState();
-	initModels();
-	initShaders();
-	initUniforms();
+    initModels();
+    initShaders();
+    initUniforms();
     setWindowCallbacks();
 
-	glCheckError();
-	// application loop
-	while (!glfwWindowShouldClose(myWindow.getWindow())) {
+    glCheckError();
+    // application loop
+    while (!glfwWindowShouldClose(myWindow.getWindow())) {
         processMovement();
-	    renderScene();
+        renderScene();
 
-		glfwPollEvents();
-		glfwSwapBuffers(myWindow.getWindow());
+        glfwPollEvents();
+        glfwSwapBuffers(myWindow.getWindow());
 
-		glCheckError();
-	}
+        glCheckError();
+    }
 
-	cleanup();
+    cleanup();
 
     return EXIT_SUCCESS;
 }
