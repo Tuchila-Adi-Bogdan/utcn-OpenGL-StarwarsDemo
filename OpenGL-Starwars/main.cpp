@@ -92,6 +92,26 @@ struct Ship {
     float stateTimer = 0.0f;
 };
 
+struct LaserShot {
+    bool active = false;
+    float progress = 0.0f;      // 0.0 = Start, 1.0 = Target
+    glm::vec3 startPos;         // Origin
+    Ship* targetShip = nullptr; // Target
+};
+
+LaserShot isdLasers[7];
+
+glm::vec3 isdOffsets[] = {
+    glm::vec3(0.0f,  0.0f,   0.0f),       // Key 1 (Center Leader)
+    glm::vec3(-80.0f,  0.0f,  80.0f),     // Key 2 (Left Wing)
+    glm::vec3(80.0f,  0.0f,  80.0f),      // Key 3 (Right Wing)
+    glm::vec3(-160.0f, 0.0f, 160.0f),     // Key 4
+    glm::vec3(160.0f, 0.0f, 160.0f),      // Key 5
+    glm::vec3(-240.0f, 0.0f, 240.0f),     // Key 6
+    glm::vec3(240.0f, 0.0f, 240.0f)       // Key 7
+    // Note: The 8th ship (Command Top) is excluded for now
+};
+int isdKeys[] = { GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5, GLFW_KEY_6, GLFW_KEY_7 };
 // Global Fleets
 std::vector<Ship> xWings;
 std::vector<Ship> aWings;
@@ -395,6 +415,34 @@ void updateShips(float deltaTime, bool fightActive) {
     updateFleet(aWings, true);
 }
 
+void fireISDLaser(LaserShot& laser, glm::vec3 shooterPos) {
+    if (laser.active) return; // Already firing
+    if (xWings.empty() && aWings.empty()) return; // No targets
+
+    // 1. Set Start Position
+    laser.startPos = shooterPos;
+    laser.progress = 0.0f;
+    laser.active = true;
+
+    // 2. Pick Random Target
+    // Flip a coin: 0 for X-Wing, 1 for A-Wing (if available)
+    bool pickXWing = (rand() % 2 == 0);
+
+    if (pickXWing && !xWings.empty()) {
+        int index = rand() % xWings.size();
+        laser.targetShip = &xWings[index];
+    }
+    else if (!aWings.empty()) {
+        int index = rand() % aWings.size();
+        laser.targetShip = &aWings[index];
+    }
+    else if (!xWings.empty()) {
+        // Fallback if we tried to pick A-Wing but none existed
+        int index = rand() % xWings.size();
+        laser.targetShip = &xWings[index];
+    }
+}
+
 void processMovement() {
     if (!shipsInitialized) initFighterFleets();
 
@@ -437,6 +485,28 @@ void processMovement() {
                 explosionProgress += deltaTime * explosionSpeed;
             }
         }
+
+        for (int i = 0; i < 7; i++) {
+            // 1. Fire Logic
+            if (pressedKeys[isdKeys[i]]) {
+                // Calculate Turret Position: Fleet Pos + Ship Offset + Turret Offset
+                // Turret Offset: slightly down (-10) and forward (50) to shoot from the nose/hangar
+                glm::vec3 turretPos = ImperialFleetPosition + isdOffsets[i] + glm::vec3(0.0f, -10.0f, 50.0f);
+
+                fireISDLaser(isdLasers[i], turretPos);
+            }
+
+            // 2. Update Progress (Only if active)
+            if (isdLasers[i].active && isdLasers[i].targetShip != nullptr) {
+                isdLasers[i].progress += 3.0f * deltaTime; // Speed of laser
+
+                if (isdLasers[i].progress >= 1.0f) {
+                    isdLasers[i].progress = 1.0f;
+                    isdLasers[i].active = false; // Reset after hit
+                    // Optional: Mark the ship as "Hit" here if you want explosions later
+                }
+            }
+        }
     }
     else {
         isSpaceHeld = false;
@@ -453,7 +523,14 @@ void processMovement() {
         aWings.clear();
         shipsInitialized = false;
         isSpaceHeld = false;
+        for (int i = 0; i < 7; i++) {
+            isdLasers[i].active = false;
+            isdLasers[i].progress = 0.0f;
+            isdLasers[i].targetShip = nullptr;
+        }
     }
+
+
 
     // Shader updates
     view = myCamera.getViewMatrix();
@@ -461,6 +538,51 @@ void processMovement() {
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
     glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrix));
+}
+
+void renderISDLaser(gps::Shader shader, LaserShot& laser) {
+    if (!laser.active || laser.targetShip == nullptr) return;
+
+    shader.useShaderProgram();
+
+    glm::vec3 start = laser.startPos;
+    glm::vec3 target = laser.targetShip->position; // Dynamic target position
+
+    // Calculate current tip of the beam
+    glm::vec3 currentPos = start + (target - start) * laser.progress;
+
+    // 1. LIGHTING (Green Light at tip)
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightPos"), 1, glm::value_ptr(currentPos));
+    glm::vec3 greenColor = glm::vec3(0.0f, 1.0f, 0.0f); // Bright Green
+    glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightColor"), 1, glm::value_ptr(greenColor));
+
+    // 2. RENDER BEAM
+    glm::mat4 modelBeam = glm::mat4(1.0f);
+    modelBeam = glm::translate(modelBeam, currentPos);
+
+    // Orientation Math (Look at start from current pos to align beam backwards)
+    glm::vec3 direction = glm::normalize(start - target); // Inverted for LookAt
+
+    // Safety check to prevent crash if start == target
+    if (glm::length(target - start) > 0.1f) {
+        glm::mat4 rotation = glm::inverse(glm::lookAt(currentPos, start, glm::vec3(0, 1, 0)));
+        rotation[3] = glm::vec4(0, 0, 0, 1);
+        modelBeam = modelBeam * rotation;
+    }
+
+    modelBeam = glm::rotate(modelBeam, glm::radians(-90.0f), glm::vec3(1, 0, 0));
+
+    // Scale: Thinner than Death Star beam
+    modelBeam = glm::scale(modelBeam, glm::vec3(1.5f, 4.0f, 1.5f));
+
+    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelBeam));
+    glm::mat3 normalMatrixBeam = glm::mat3(glm::inverseTranspose(view * modelBeam));
+    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixBeam));
+
+    // Fix tiling
+    glUniform1f(glGetUniformLocation(shader.shaderProgram, "tilingFactor"), 1.0f);
+
+    laserBeam.Draw(shader);
 }
 
 void renderSuperlaser(gps::Shader shader) {
@@ -720,22 +842,10 @@ void renderCruisers(gps::Shader shader) {
 void renderISD1(gps::Shader shader) {
     shader.useShaderProgram();
 
-    // Spacing offsets
-    glm::vec3 formationOffsets[] = {
-        glm::vec3(0.0f,  0.0f,   0.0f),
-        glm::vec3(-80.0f,  0.0f,  80.0f),
-        glm::vec3(80.0f,  0.0f,  80.0f),
-        glm::vec3(-160.0f, 0.0f, 160.0f),
-        glm::vec3(160.0f, 0.0f, 160.0f),
-        glm::vec3(-240.0f, 0.0f, 240.0f),
-        glm::vec3(240.0f, 0.0f, 240.0f),
-        glm::vec3(0.0f, 40.0f, 120.0f)
-    };
-
     for (int i = 0; i < 8; i++) {
         glm::mat4 isdModel = glm::mat4(1.0f);
 
-        isdModel = glm::translate(isdModel, ImperialFleetPosition + formationOffsets[i]);
+        isdModel = glm::translate(isdModel, ImperialFleetPosition + isdOffsets[i]);
 
         isdModel = glm::scale(isdModel, glm::vec3(0.05f));
         isdModel = glm::rotate(isdModel, glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -837,6 +947,9 @@ void renderScene() {
     renderAWings(myBasicShader);
     renderSuperlaser(myBasicShader);
     renderExplosion(myBasicShader);
+    for (int i = 0; i < 7; i++) {
+        renderISDLaser(myBasicShader, isdLasers[i]);
+    }
 }
 
 void cleanup() {
