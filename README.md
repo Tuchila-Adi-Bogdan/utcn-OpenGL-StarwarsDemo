@@ -1,1 +1,1 @@
-# utcn-OpenGL-BatteOfEndor
+# utcn-OpenGL-StarwarsDemo
