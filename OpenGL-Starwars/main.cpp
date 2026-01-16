@@ -76,6 +76,8 @@ gps::Model3D laserBeam;
 float beamProgress = 0.0f; // 0.0 = Death Star, 1.0 = Cruiser
 glm::vec3 dsDishPos(130.0f, 200.0f, -800.0f); 
 
+static int displayMode = 0;
+
 // SHIP DATA STRUCTURE
 enum ShipState {
     APPROACHING,
@@ -202,6 +204,24 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
         }
         else if (action == GLFW_RELEASE) {
             pressedKeys[key] = false;
+        }
+    }
+    if (key == GLFW_KEY_T && action == GLFW_PRESS) {
+        displayMode++;
+        if (displayMode > 2) displayMode = 0;
+
+        switch (displayMode) {
+        case 0: // Solid / Smooth
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+            break;
+
+        case 1: // Wireframe
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            break;
+
+        case 2: // Polygonal (i think lol)
+            glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
+            break;
         }
     }
 }
