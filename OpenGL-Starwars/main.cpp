@@ -219,7 +219,7 @@ void keyboardCallback(GLFWwindow* window, int key, int scancode, int action, int
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
             break;
 
-        case 2: // Polygonal (i think lol)
+        case 2: // Polygonal 
             glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
             break;
         }
