@@ -70,11 +70,11 @@ glm::vec3 cruiserFleetPosition(0.0f, 20.0f, 950.0f);
 glm::vec3 awingFleetPosition(0.0f, 0.0f, 880.0f);
 
 glm::vec3 sunPosition = glm::vec3(3000.0f, 3000.0f, 3000.0f);
-glm::vec3 lightPosition = glm::vec3(2500.0f, 2500.0f, 2500.0f);
+glm::vec3 lightPosition = glm::vec3(0.0f, 50.0f, -2500.0f);
 
-gps::Model3D laserBeam; // Load your beam object here
-float beamProgress = 0.0f; // 0.0 = At Death Star, 1.0 = Hit Cruiser
-glm::vec3 dsDishPos(130.0f, 200.0f, -800.0f); // Adjust to match your Death Star model dish
+gps::Model3D laserBeam;
+float beamProgress = 0.0f; // 0.0 = Death Star, 1.0 = Cruiser
+glm::vec3 dsDishPos(130.0f, 200.0f, -800.0f); 
 
 // SHIP DATA STRUCTURE
 enum ShipState {
@@ -82,8 +82,8 @@ enum ShipState {
     EVASIVE_TURN,
     EVASIVE_RUN,
     STABILIZE,
-    RETURNING,   // Flying back to Rebel Fleet
-    RESET_TURN   // Turning around to start a new run
+    RETURNING,
+    RESET_TURN
 };
 
 struct Ship {
@@ -111,7 +111,6 @@ glm::vec3 isdOffsets[] = {
     glm::vec3(160.0f, 0.0f, 160.0f),      // Key 5
     glm::vec3(-240.0f, 0.0f, 240.0f),     // Key 6
     glm::vec3(240.0f, 0.0f, 240.0f)       // Key 7
-    // Note: The 8th ship (Command Top) is excluded for now
 };
 int isdKeys[] = { GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5, GLFW_KEY_6, GLFW_KEY_7 };
 
@@ -248,7 +247,7 @@ void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
 void initFighterFleets() {
     if (shipsInitialized) return; // Only run once
 
-    // --- 1. SETUP X-WINGS (5 Squadrons of 5) ---
+    // SETUP X-WINGS (5 Squadrons of 5)
     glm::vec3 xWingOffsets[] = {
         glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-15.0f, 0.0f, 15.0f),
         glm::vec3(15.0f, 0.0f, 15.0f), glm::vec3(-30.0f, 0.0f, 30.0f), glm::vec3(30.0f, 0.0f, 30.0f)
@@ -276,7 +275,7 @@ void initFighterFleets() {
         }
     }
 
-    // --- SETUP A-WINGS (3 Squadrons of 3) ---
+    // SETUP A-WINGS (3 Squadrons of 3) 
     glm::vec3 aOffsets[] = { glm::vec3(-10.0f, 5.0f, -10.0f), glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(10.0f, 5.0f, 10.0f) };
     glm::vec3 aCenters[] = { glm::vec3(-100.0f, 80.0f, 0.0f), glm::vec3(100.0f, 80.0f, 0.0f), glm::vec3(0.0f, 120.0f, 50.0f) };
 
@@ -301,8 +300,8 @@ void updateShips(float deltaTime, bool fightActive) {
     auto updateFleet = [&](std::vector<Ship>& fleet, bool canDoManeuver) {
 
         // Define boundaries
-        float empireLine = ImperialFleetPosition.z + 50.0f; // Where they turn back
-        float rebelLine = cruiserFleetPosition.z - 50.0f;     // Where they reset (Assuming Rebel fleet is at +Z)
+        float empireLine = ImperialFleetPosition.z + 50.0f; // turn back
+        float rebelLine = cruiserFleetPosition.z - 50.0f;     // reset
 
         for (auto& ship : fleet) {
             ship.stateTimer += deltaTime;
@@ -312,7 +311,7 @@ void updateShips(float deltaTime, bool fightActive) {
                 // PHASE 0: The Approach (Flying -Z towards Empire)
             case APPROACHING:
             {
-                // Random Jitter (Only if fighting)
+                // Random Jitter
                 if (fightActive) {
                     float rPitch = ((rand() % 1000) / 1000.0f - 0.5f) * 2.0f;
                     float rYaw = ((rand() % 1000) / 1000.0f - 0.5f) * 2.0f;
@@ -431,13 +430,12 @@ void fireISDLaser(LaserShot& laser, glm::vec3 shooterPos) {
     if (laser.active) return; // Already firing
     if (xWings.empty() && aWings.empty()) return; // No targets
 
-    // 1. Set Start Position
+    // Set Start Position
     laser.startPos = shooterPos;
     laser.progress = 0.0f;
     laser.active = true;
 
-    // 2. Pick Random Target
-    // Flip a coin: 0 for X-Wing, 1 for A-Wing (if available)
+    // Pick Random Target
     bool pickXWing = (rand() % 2 == 0);
 
     if (pickXWing && !xWings.empty()) {
@@ -449,7 +447,6 @@ void fireISDLaser(LaserShot& laser, glm::vec3 shooterPos) {
         laser.targetShip = &aWings[index];
     }
     else if (!xWings.empty()) {
-        // Fallback if we tried to pick A-Wing but none existed
         int index = rand() % xWings.size();
         laser.targetShip = &xWings[index];
     }
@@ -522,7 +519,7 @@ void processMovement() {
         for (int i = 0; i < 7; i++) {
             if (pressedKeys[isdKeys[i]]) {
                 // Calculate Turret Position: Fleet Pos + Ship Offset + Turret Offset
-                // Turret Offset: slightly down (-10) and forward (50) to shoot from the nose/hangar
+                // Turret Offset to shoot from the nose/hangar
                 glm::vec3 turretPos = ImperialFleetPosition + isdOffsets[i] + glm::vec3(0.0f, -10.0f, 50.0f);
 
                 fireISDLaser(isdLasers[i], turretPos);
@@ -535,7 +532,6 @@ void processMovement() {
                 if (isdLasers[i].progress >= 1.0f) {
                     isdLasers[i].progress = 1.0f;
                     isdLasers[i].active = false; // Reset after hit
-                    // Optional: Mark the ship as "Hit" here if you want explosions later
                 }
             }
         }
@@ -545,7 +541,6 @@ void processMovement() {
         }
 
         // 2. Update Rebel Lasers (Move them forward)
-        // We use a normal for-loop so we can remove finished shots easily
         for (auto it = rebelLasers.begin(); it != rebelLasers.end(); ) {
             if (it->active) {
                 it->progress += ShipLaserSpeed * deltaTime; 
@@ -553,7 +548,6 @@ void processMovement() {
                 if (it->progress >= 1.0f) {
                     it->active = false;
                     it = rebelLasers.erase(it); // Remove hit shots
-                    // Optional: Add explosion logic on ISDs here
                 }
                 else {
                     ++it;
@@ -571,7 +565,6 @@ void processMovement() {
     if (pressedKeys[GLFW_KEY_P]) {
         fireRebelVolley();
     }
-
 
     // RESET logic
     if (pressedKeys[GLFW_KEY_K]) {
@@ -591,8 +584,6 @@ void processMovement() {
         }
     }
 
-
-
     // Shader updates
     view = myCamera.getViewMatrix();
     myBasicShader.useShaderProgram();
@@ -610,10 +601,9 @@ void renderRebelLasers(gps::Shader shader) {
         glm::vec3 start = laser.startPos;
 
         // Calculate Target Position: Fleet Pos + ISD Offset
-        // We add a slight offset (0, 10, 50) to hit the hull, not the center pivot
+        // offset (0, 10, 50) to hit the hull, not the center pivot
         glm::vec3 target = ImperialFleetPosition + isdOffsets[laser.targetISDIndex] + glm::vec3(0.0f, 10.0f, 50.0f);
 
-        // Lerp position
         glm::vec3 currentPos = start + (target - start) * laser.progress;
 
         // 1. RED LIGHT
@@ -890,9 +880,6 @@ void renderXWings(gps::Shader shader) {
         modelX = glm::rotate(modelX, ship.rotation.x, glm::vec3(1.0f, 0.0f, 0.0f));
         modelX = glm::rotate(modelX, ship.rotation.z, glm::vec3(0.0f, 0.0f, 1.0f));
 
-        // Scale
-        // modelX = glm::scale(modelX, glm::vec3(0.6f));
-
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelX));
         glm::mat3 normalMatrixX = glm::mat3(glm::inverseTranspose(view * modelX));
         glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixX));
@@ -929,9 +916,8 @@ void renderCruisers(gps::Shader shader) {
     };
 
     for (int i = 0; i < 3; i++) {
-        // --- LOGIC: Hide Center Cruiser on Hit ---
+        // Hide Center Cruiser on Hit
         if (i == 1 && hasHit) continue;
-        // -----------------------------------------
 
         glm::mat4 modelM = glm::mat4(1.0f);
         modelM = glm::translate(modelM, cruiserFleetPosition + cruisersOffsets[i]);
@@ -1007,7 +993,7 @@ void renderDebugDeathStar(gps::Shader shader) {
 }
 
 void renderExplosion(gps::Shader shader) {
-    // 1. Only draw if we hit AND explosion isn't finished yet
+    // 1. Only draw if it hit AND explosion isn't finished yet
     if (!hasHit || explosionProgress >= 1.0f) return;
 
     shader.useShaderProgram();
@@ -1029,7 +1015,7 @@ void renderExplosion(gps::Shader shader) {
     // 5. Light Effect (Yellow/Orange Flash)
     // Position light at explosion center
     glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightPos"), 1, glm::value_ptr(cruiserFleetPosition));
-    // Bright Yellow color
+    // Yellow color
     glm::vec3 yellowColor = glm::vec3(5.0f, 3.0f, 0.0f);
     glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightColor"), 1, glm::value_ptr(yellowColor));
 
