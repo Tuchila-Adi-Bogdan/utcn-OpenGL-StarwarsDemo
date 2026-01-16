@@ -11,15 +11,10 @@
 <h3 align="center">utcn-OpenGL-StarwarsDemo</h3>
 
   <p align="center">
-    O simulăre 3D interactivă a unei bătălii spațiale, inspirată din universul "Star Wars". Implementată cu OpenGL 
+    O simulăre 3D interactivă a unei bătălii spațiale, inspirată din universul "Star Wars". Implementată cu OpenGL.
     <br />
     Pentru materia PG (prelucrare grafica). 
-    <!-- <br />
-    <a href="https://github.com/Tuchila-Adi-Bogdan/utcn-Investor_Centre/tree/main/docs"><strong>Explore the docs »</strong></a>
-    <br /> -->
     <br />
-    <!-- <a href="https://github.com/Tuchila-Adi-Bogdan/utcn-Investor_Centre">View Demo</a> -->
-    <!-- &middot; -->
     <a href="https://github.com/Tuchila-Adi-Bogdan/utcn-OpenGL-StarwarsDemo/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
     &middot;
     <a href="https://github.com/Tuchila-Adi-Bogdan/utcn-OpenGL-StarwarsDemo/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
