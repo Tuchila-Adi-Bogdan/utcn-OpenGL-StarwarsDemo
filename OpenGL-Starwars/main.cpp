@@ -308,7 +308,7 @@ void updateShips(float deltaTime, bool fightActive) {
 
             switch (ship.state) {
 
-                // PHASE 0: The Approach (Flying -Z towards Empire)
+                // PHASE 0: The Approach (-Z)
             case APPROACHING:
             {
                 // Random Jitter
@@ -377,20 +377,19 @@ void updateShips(float deltaTime, bool fightActive) {
                 ship.position.z += (ship.speed * 80.0f) * deltaTime;
 
                 if (ship.stateTimer >= 1.5f) {
-                    ship.state = RETURNING; // Switch to returning mode
+                    ship.state = RETURNING;
                     ship.stateTimer = 0.0f;
                 }
             }
             break;
 
-            // PHASE 4: Return to Fleet (Flying +Z smoothly)
+            // PHASE 4: Return to MCs (Flying +Z smoothly)
             case RETURNING:
             {
                 // Just fly straight towards Rebel Fleet (+Z)
                 ship.position.z += (ship.speed * 80.0f) * deltaTime;
 
                 // Check Arrival at Rebel Fleet
-                // Note: Assuming Rebel fleet is at Positive Z (e.g. 300)
                 if (ship.position.z > rebelLine) {
                     ship.state = RESET_TURN;
                     ship.stateTimer = 0.0f;
@@ -412,7 +411,7 @@ void updateShips(float deltaTime, bool fightActive) {
                     ship.state = APPROACHING;
                     ship.stateTimer = 0.0f;
 
-                    // Optional: Reset Pitch/Roll to perfectly 0 to clean up accumulation errors
+                    // Reset Pitch/Roll to perfectly 0 to clean up accumulation errors
                     ship.rotation.x = 0.0f;
                     ship.rotation.z = 0.0f;
                 }
@@ -688,7 +687,6 @@ void renderSuperlaser(gps::Shader shader) {
     glm::vec3 target = cruiserFleetPosition;
 
     // 2. Calculate Current Position (The Bullet's location)
-    // Lerp: We move from 'start' to 'target' based on beamProgress (0.0 to 1.0)
     glm::vec3 currentPos = start + (target - start) * beamProgress;
 
     // 3. LIGHTING (Move the light with the bullet)
@@ -704,7 +702,6 @@ void renderSuperlaser(gps::Shader shader) {
     glUniform3fv(glGetUniformLocation(shader.shaderProgram, "pointLightColor"), 1, glm::value_ptr(greenColor));
 
     // 4. DRAW THE BULLET
-    // We only draw if the beam is in flight (between 0% and 100%)
     if (beamProgress > 0.01f && beamProgress < 1.0f) {
 
         glm::mat4 modelBeam = glm::mat4(1.0f);
@@ -712,23 +709,19 @@ void renderSuperlaser(gps::Shader shader) {
         // A. Move to the Current Position (Translation)
         modelBeam = glm::translate(modelBeam, currentPos);
 
-        // B. Rotate to face the Target
-        // We calculate the direction from Start to Target
+        // B. Rotate to face the Target - calculate the direction from Start to Target
         glm::vec3 direction = glm::normalize(target - start);
 
         // Create rotation matrix looking at target
-        // We use 'start' and 'target' for the LookAt to get the angle, 
-        // then remove the translation part so it's just a rotation.
+        // Use 'start' and 'target' for the LookAt to get the angle, then remove the translation part so it's just a rotation.
         glm::mat4 rotation = glm::inverse(glm::lookAt(start, target, glm::vec3(0, 1, 0)));
         rotation[3] = glm::vec4(0, 0, 0, 1); // Reset position, keep rotation
         modelBeam = modelBeam * rotation;
 
-        // C. Align Cylinder (Models usually point UP Y, we need them Forward Z)
+        // C. Align Cylinder 
         modelBeam = glm::rotate(modelBeam, glm::radians(-90.0f), glm::vec3(1, 0, 0));
 
-        // D. FIXED SCALE (This makes it a bullet, not a beam)
-        // Length of 20.0f (10.0f * 2 units high cylinder)
-        // Width of 5.0f
+        // D. Scale
         modelBeam = glm::scale(modelBeam, glm::vec3(5.0f, 10.0f, 5.0f));
 
         // Send Uniforms
@@ -743,27 +736,6 @@ void renderSuperlaser(gps::Shader shader) {
     }
 }
 
-void renderSun(gps::Shader shader) {
-    shader.useShaderProgram();
-
-    glm::mat4 modelSun = glm::mat4(1.0f);
-
-    // Position: Far away along the light direction vector
-    modelSun = glm::translate(modelSun, sunPosition);
-
-    // Scale: Make it huge (Adjust 100.0f if your model is too small/big)
-    modelSun = glm::scale(modelSun, glm::vec3(100.0f));
-
-    // Rotation 
-    // modelSun = glm::rotate(modelSun, glm::radians(angle * 0.5f), glm::vec3(0.0f, 1.0f, 0.0f));
-
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelSun));
-
-    glm::mat3 normalMatrixSun = glm::mat3(glm::inverseTranspose(view * modelSun));
-    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixSun));
-
-    sun.Draw(shader);
-}
 
 void initOpenGLWindow() {
     myWindow.Create(1024, 768, "OpenGL Starwars Project");
@@ -801,7 +773,6 @@ void initOpenGLState() {
 
 void initModels() {
 
-    //sun.LoadModel("models/sun/sun.obj");
     //Empire
     isd1.LoadModel("models/isd2/Imperial-Class-StarDestroyer.obj");
     deathStar.LoadModel("models/ds4/death_star_ii.obj");
@@ -813,7 +784,6 @@ void initModels() {
     laserBeam.LoadModel("models/beam2/beam.obj");
     redLaserBeam.LoadModel("models/beam/beam.obj");
     explosion.LoadModel("models/explosion/source/explosion.obj");
-    //transport.LoadModel("models/transport/transport.obj");
     //Skybox
     initSkybox();
 }
@@ -829,7 +799,7 @@ void initShaders() {
 void initUniforms() {
     myBasicShader.useShaderProgram();
 
-    // create model matrix for teapot
+    // create model matrix 
     model = glm::rotate(glm::mat4(1.0f), glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f));
     modelLoc = glGetUniformLocation(myBasicShader.shaderProgram, "model");
 
@@ -839,7 +809,7 @@ void initUniforms() {
     // send view matrix to shader
     glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
 
-    // compute normal matrix for teapot
+    // compute normal matrix 
     normalMatrix = glm::mat3(glm::inverseTranspose(view * model));
     normalMatrixLoc = glGetUniformLocation(myBasicShader.shaderProgram, "normalMatrix");
 
@@ -934,7 +904,7 @@ void renderCruisers(gps::Shader shader) {
 void renderISD1(gps::Shader shader) {
     shader.useShaderProgram();
 
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 7; i++) {
         glm::mat4 isdModel = glm::mat4(1.0f);
 
         isdModel = glm::translate(isdModel, ImperialFleetPosition + isdOffsets[i]);
@@ -971,27 +941,6 @@ void renderDeathStar(gps::Shader shader) {
     deathStar.Draw(shader);
 }
 
-void renderDebugDeathStar(gps::Shader shader) {
-    shader.useShaderProgram();
-
-    glm::mat4 modelDDS = glm::mat4(1.0f);
-
-    // Position: Exactly halfway between the Sun (3000) and the Scene (0)
-    modelDDS = glm::translate(modelDDS, glm::vec3(1500.0f, 1500.0f, 1500.0f));
-
-    // Scale: Reasonable size to see it clearly
-    //modelDDS = glm::scale(modelDDS, glm::vec3(5.0f));
-
-    // Send Uniforms
-    glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(modelDDS));
-
-    glm::mat3 normalMatrixDDS = glm::mat3(glm::inverseTranspose(view * modelDDS));
-    glUniformMatrix3fv(normalMatrixLoc, 1, GL_FALSE, glm::value_ptr(normalMatrixDDS));
-
-    // Reuse the existing deathStar model
-    deathStar.Draw(shader);
-}
-
 void renderExplosion(gps::Shader shader) {
     // 1. Only draw if it hit AND explosion isn't finished yet
     if (!hasHit || explosionProgress >= 1.0f) return;
@@ -1003,7 +952,7 @@ void renderExplosion(gps::Shader shader) {
     // 2. Move to Center Cruiser Position
     modelExp = glm::translate(modelExp, cruiserFleetPosition);
 
-    // 3. Scale Up (0 to 10x) based on progress
+    // 3. Scale Up 
     float currentScale = explosionProgress * 100.0f;
     modelExp = glm::scale(modelExp, glm::vec3(currentScale));
 
@@ -1026,13 +975,11 @@ void renderScene() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     //render the scene
-    //renderSun(myBasicShader);
     // render the skybox
     mySkyBox.Draw(skyboxShader, view, projection);
     //Empire
     renderISD1(myBasicShader);
     renderDeathStar(myBasicShader);
-    //renderDebugDeathStar(myBasicShader);
     //Rebel Alliance
     renderXWings(myBasicShader);
     renderCruisers(myBasicShader);
