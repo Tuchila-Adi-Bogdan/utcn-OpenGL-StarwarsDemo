@@ -5,7 +5,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/Tuchila-Adi-Bogdan/utcn-OpenGL-StarwarsDemo">
-    <img src="docs/screenshot.png" alt="Logo">
+    <img src="docs/Screenshot.png" alt="Logo">
   </a>
   
 <h3 align="center">utcn-OpenGL-StarwarsDemo</h3>
